@@ -12,43 +12,55 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
     <style>
         body {
-            background-color: #121212;
+            background-color: #1e1e2f;
             color: white;
             font-family: 'Poppins', sans-serif;
             text-align: center;
             padding-top: 50px;
+            margin: 0;
         }
 
         .container-box {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 20px;
-            width: 350px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 30px;
+            width: 450px;
             margin: auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .progress-container {
-            background: rgba(255, 255, 255, 0.2);
-            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            height: 12px;
             border-radius: 10px;
             overflow: hidden;
-            margin-top: 15px;
+            margin-top: 20px;
+            position: relative;
         }
 
         .progress-bar {
             background: linear-gradient(45deg, #ff416c, #ff4b2b);
             height: 100%;
             width: 0%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
         }
 
         .status-box {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
             border-radius: 10px;
-            margin-top: 10px;
+            margin-top: 20px;
             font-size: 14px;
+            color: #ddd;
+            text-align: left;
         }
 
         .btn-custom {
@@ -56,18 +68,105 @@
             color: white;
             font-weight: bold;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 25px;
             border-radius: 50px;
             cursor: pointer;
-            margin-top: 15px;
+            margin-top: 20px;
             display: block;
             width: 100%;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 15px rgba(255, 65, 108, 0.3);
+        }
+
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 65, 108, 0.4);
         }
 
         .branding {
-            margin-top: 20px;
-            font-size: 12px;
+            margin-top: 30px;
+            font-size: 14px;
             color: #bbb;
+        }
+
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .file-upload-label i {
+            font-size: 20px;
+        }
+
+        .play-btn, .download-btn {
+            display: none;
+            margin-top: 15px;
+        }
+
+        .play-btn i, .download-btn i {
+            margin-right: 8px;
+        }
+
+        .audio-controls {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .audio-controls button {
+            flex: 1;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .material-icons-round {
+            font-family: 'Material Icons Round';
+            font-size: 24px;
+            vertical-align: middle;
+        }
+
+        .premium-feature {
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 20px;
+            color: #ffd700;
+            font-size: 14px;
+        }
+
+        .premium-feature i {
+            color: #ffd700;
+            margin-right: 8px;
         }
     </style>
 </head>
@@ -78,7 +177,7 @@
 
         <!-- File Upload -->
         <input type="file" id="fileUpload" accept=".pdf" hidden>
-        <label for="fileUpload" class="btn-custom">
+        <label for="fileUpload" class="btn-custom file-upload-label">
             <i class="fas fa-cloud-upload-alt"></i> Upload PDF
         </label>
 
@@ -90,13 +189,20 @@
         <!-- Status Box -->
         <div class="status-box">Waiting for file...</div>
 
-        <!-- Action Buttons -->
-        <button class="btn-custom play-btn" style="display: none;">
-            <i class="fas fa-play"></i> Play Audio
-        </button>
-        <button class="btn-custom download-btn" style="display: none;">
-            <i class="fas fa-download"></i> Download MP3
-        </button>
+        <!-- Premium Feature -->
+        <div class="premium-feature">
+            <i class="material-icons-round">star</i> Premium Feature: High-Quality Audio Conversion
+        </div>
+
+        <!-- Audio Controls -->
+        <div class="audio-controls">
+            <button class="btn-custom play-btn">
+                <i class="fas fa-play"></i> Play Audio
+            </button>
+            <button class="btn-custom download-btn">
+                <i class="fas fa-download"></i> Download MP3
+            </button>
+        </div>
     </div>
 
     <div class="branding">Crafted with ❤️ by <strong>Royal Developer</strong></div>
