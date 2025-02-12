@@ -64,6 +64,24 @@
             background: var(--neon-blue);
             border-radius: 4px;
         }
+
+
+
+
+
+
+
+    .highlight-word {
+        color: var(--neon-blue) !important;
+        text-shadow: 0 0 10px var(--neon-blue);
+        transition: color 0.3s ease;
+
+    }
+
+
+
+
+        
     </style>
 </head>
 <body class="antialiased">
@@ -297,54 +315,61 @@
 
 
 
-
-
-
-document.addEventListener('DOMContentLoaded', () => {
-    const audioElement = document.getElementById('audioElement');
-    const extractedTextContent = document.getElementById('extractedTextContent');
-
+    // Revised highlightWords function
     function highlightWords(text) {
-        let words = text.split(/\s+/);
-        extractedTextContent.innerHTML = words.map(word => `<span>${word}</span>`).join(' ');
+        // Improved word splitting with punctuation handling
+        const words = text.match(/[\w']+|[.,!?;”“"‘’]/g) || [];
+        const formatted = words.map(word => `<span class="word">${word}</span>`).join(' ');
+        document.getElementById('extractedTextContent').innerHTML = formatted;
     }
 
-    function syncHighlighting() {
-        let words = extractedTextContent.getElementsByTagName('span');
-        let currentIndex = 0;
+    // Audio synchronization logic
+    function setupAudioSync() {
+        const audioElement = document.getElementById('audioElement');
+        const words = document.getElementsByClassName('word');
+        let currentWord = -1;
 
-        const interval = setInterval(() => {
-            if (currentIndex >= words.length) {
-                clearInterval(interval);
-                return;
-            }
+        // Clear previous highlights
+        function resetHighlights() {
+            Array.from(words).forEach(word => {
+                word.classList.remove('highlight-word');
+            });
+            currentWord = -1;
+        }
+
+        // Update highlights based on audio time
+        function updateHighlight() {
+            if (!audioElement.duration || words.length === 0) return;
             
-            // Reset all words to white
-            for (let word of words) {
-                word.style.color = 'white';
+            const currentTime = audioElement.currentTime;
+            const progress = currentTime / audioElement.duration;
+            const newIndex = Math.floor(progress * words.length);
+
+            if (newIndex !== currentWord) {
+                resetHighlights();
+                if (newIndex < words.length) {
+                    words[newIndex].classList.add('highlight-word');
+                    currentWord = newIndex;
+                }
             }
+        }
 
-            // Highlight the current word
-            words[currentIndex].style.color = 'red';
-            currentIndex++;
-
-        }, (audioElement.duration / words.length) * 1000);
-        
-        audioElement.addEventListener('ended', () => {
-            clearInterval(interval);
-        });
+        // Event listeners
+        audioElement.addEventListener('timeupdate', updateHighlight);
+        audioElement.addEventListener('seeked', updateHighlight);
+        audioElement.addEventListener('play', resetHighlights);
+        audioElement.addEventListener('ended', resetHighlights);
+        audioElement.addEventListener('pause', resetHighlights);
     }
 
-    audioElement.addEventListener('play', syncHighlighting);
-});
-
-// Call highlightWords() when the extracted text is loaded
-function showTextPreview(text) {
-    document.getElementById('textPreview').style.display = 'block';
-    highlightWords(text);  // Apply word highlighting
-                }
-
-
+    // Modified showTextPreview function
+    function showTextPreview(text) {
+        document.getElementById('textPreview').style.display = 'block';
+        highlightWords(text);
+        document.getElementById('extractedTextContent').classList.add('fade-in');
+        setupAudioSync(); // Initialize audio sync after text is loaded
+    }
+</script>
 
 
 
