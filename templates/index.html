@@ -40,17 +40,6 @@
             transform: translateY(-5px);
         }
 
-        .developer-badge {
-            position: absolute;
-            top: -20px;
-            right: 20px;
-            background: var(--secondary-gradient);
-            padding: 8px 20px;
-            border-radius: 30px;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-
         .upload-label {
             background: var(--secondary-gradient);
             padding: 1rem 2rem;
@@ -66,6 +55,29 @@
         .upload-label:hover {
             transform: scale(1.05);
             box-shadow: 0 5px 15px rgba(0, 198, 255, 0.4);
+        }
+
+        .progress-container {
+            background: rgba(255, 255, 255, 0.1);
+            height: 10px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 1.5rem 0;
+            display: none;
+        }
+
+        .progress-bar {
+            background: var(--secondary-gradient);
+            height: 100%;
+            width: 0%;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .status-text {
+            text-align: center;
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-top: 1rem;
         }
 
         .action-buttons {
@@ -91,103 +103,104 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0, 198, 255, 0.4);
         }
-
-        .progress-container {
-            background: rgba(255, 255, 255, 0.1);
-            height: 10px;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 1.5rem 0;
-        }
-
-        .progress-bar {
-            background: var(--secondary-gradient);
-            height: 100%;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .status-text {
-            text-align: center;
-            font-size: 0.9rem;
-            opacity: 0.9;
-            margin-top: 1rem;
-        }
     </style>
 </head>
 <body>
 
-<div class="container position-relative">
-    <div class="glass-card">
-        <div class="developer-badge">
-            🏆 100+ Projects Completed
-        </div>
-        
-        <h1 class="text-center mb-4 fw-bold">PDF to MP3 Pro</h1>
-        
-        <div class="text-center">
-            <label for="fileUpload" class="upload-label">
-                <i class="fas fa-cloud-upload-alt"></i>
-                Select PDF File
-            </label>
-            <input type="file" id="fileUpload" accept=".pdf" hidden>
-        </div>
+<div class="container">
+    <div class="glass-card text-center">
+        <h1 class="mb-4 fw-bold">PDF to MP3 Pro</h1>
 
-        <div class="progress-container">
+        <label for="fileUpload" class="upload-label">
+            <i class="fas fa-cloud-upload-alt"></i> Select PDF File
+        </label>
+        <input type="file" id="fileUpload" accept=".pdf" hidden>
+
+        <div class="progress-container mt-3">
             <div class="progress-bar"></div>
         </div>
 
         <div class="status-text">Ready for Conversion</div>
 
-        <div class="action-buttons justify-content-center">
+        <div class="action-buttons">
             <button class="action-btn play-btn">
-                <i class="fas fa-play"></i>
-                Play Audio
+                <i class="fas fa-play"></i> Play Audio
             </button>
-            <button class="action-btn download-btn">
-                <i class="fas fa-download"></i>
-                Download MP3
-            </button>
+            <a href="#" class="action-btn download-btn" download>
+                <i class="fas fa-download"></i> Download MP3
+            </a>
         </div>
-    </div>
-
-    <div class="text-center mt-4 opacity-75">
-        Crafted with ❤️ by <strong>Royal Developer</strong>
     </div>
 </div>
 
 <script>
-    // Existing JavaScript with modifications to show action buttons
     const fileInput = document.getElementById("fileUpload");
     const progressBar = document.querySelector(".progress-bar");
+    const progressContainer = document.querySelector(".progress-container");
     const statusText = document.querySelector(".status-text");
     const actionButtons = document.querySelector(".action-buttons");
+    const playBtn = document.querySelector(".play-btn");
+    const downloadBtn = document.querySelector(".download-btn");
 
     fileInput.addEventListener("change", function() {
         if (fileInput.files.length > 0) {
-            // Simulate conversion process
-            simulateConversion();
+            uploadFile(fileInput.files[0]);
         }
     });
 
-    function simulateConversion() {
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += 10;
-            progressBar.style.width = `${progress}%`;
-            statusText.textContent = `Processing... ${progress}%`;
+    async function uploadFile(file) {
+        const formData = new FormData();
+        formData.append("file", file);
 
-            if (progress >= 100) {
-                clearInterval(interval);
-                conversionComplete();
+        progressContainer.style.display = "block";
+        progressBar.style.width = "0%";
+        statusText.textContent = "Uploading file...";
+
+        try {
+            let response = await fetch("/upload", {
+                method: "POST",
+                body: formData,
+            });
+
+            let result = await response.json();
+
+            if (result.error) {
+                statusText.textContent = "❌ " + result.error;
+                return;
             }
-        }, 300);
+
+            checkConversionStatus(result.mp3_files);
+        } catch (error) {
+            statusText.textContent = "❌ Upload failed!";
+        }
     }
 
-    function conversionComplete() {
-        statusText.textContent = "Conversion Complete!";
+    function checkConversionStatus(mp3Files) {
+        let interval = setInterval(async () => {
+            let response = await fetch("/status");
+            let statusData = await response.json();
+
+            progressBar.style.width = statusData.progress + "%";
+            statusText.textContent = statusData.status;
+
+            if (statusData.progress >= 100) {
+                clearInterval(interval);
+                showDownloadOptions(mp3Files);
+            }
+        }, 1000);
+    }
+
+    function showDownloadOptions(mp3Files) {
         actionButtons.style.display = "flex";
+        if (mp3Files.length > 0) {
+            let mp3Url = "/output/" + mp3Files[0];
+            playBtn.addEventListener("click", () => {
+                new Audio(mp3Url).play();
+            });
+            downloadBtn.href = mp3Url;
+        }
     }
 </script>
 
 </body>
-</html>
+    </html>
