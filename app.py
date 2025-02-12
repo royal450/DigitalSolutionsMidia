@@ -1,42 +1,41 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 import os
 from gtts import gTTS
 from PyPDF2 import PdfReader
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 CORS(app)
 
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'output'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "output"
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# ✅ Home Route Fix
-@app.route('/')
+@app.route("/")
 def home():
-    return jsonify({"message": "PDF to MP3 Converter API is Live!"})
+    return render_template("index.html")  # UI Page
 
-@app.route('/upload', methods=['POST'])
+@app.route("/upload", methods=["POST"])
 def upload():
-    if 'file' not in request.files:
+    if "file" not in request.files:
         return jsonify({"error": "No file selected!"})
 
-    file = request.files['file']
-    if file.filename == '':
+    file = request.files["file"]
+    if file.filename == "":
         return jsonify({"error": "No file selected!"})
 
-    if file and file.filename.endswith('.pdf'):
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    if file and file.filename.endswith(".pdf"):
+        file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
         file.save(file_path)
 
-        # PDF से Text निकालो
+        # PDF से टेक्स्ट निकालो
         pages_text = extract_text_from_pdf(file_path)
 
-        # Text को Audio में बदलो
+        # टेक्स्ट को MP3 में बदलो
         mp3_files = convert_text_to_speech(pages_text)
 
         return jsonify({"mp3_files": mp3_files})
@@ -48,7 +47,7 @@ def extract_text_from_pdf(pdf_path):
     with open(pdf_path, "rb") as file:
         reader = PdfReader(file)
         for page in reader.pages:
-            pages_text.append(page.extract_text().strip() if page.extract_text() else '')
+            pages_text.append(page.extract_text().strip() if page.extract_text() else "")
     return pages_text
 
 def convert_text_to_speech(pages_text):
@@ -57,17 +56,17 @@ def convert_text_to_speech(pages_text):
         if not page_text:
             continue
 
-        tts = gTTS(text=page_text, lang='en')
+        tts = gTTS(text=page_text, lang="en")
         filename = f"page_{i}.mp3"
-        output_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+        output_path = os.path.join(app.config["OUTPUT_FOLDER"], filename)
         tts.save(output_path)
         mp3_files.append(filename)
 
     return mp3_files
 
-@app.route('/output/<filename>')
+@app.route("/output/<filename>")
 def serve_audio(filename):
-    return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+    return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
