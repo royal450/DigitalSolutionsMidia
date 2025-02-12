@@ -1,9 +1,8 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
-import time
 from gtts import gTTS
 from PyPDF2 import PdfReader
-import threading
+import time
 
 app = Flask(__name__)
 
@@ -17,47 +16,40 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 🔹 Update Progress Status
 def update_status(status, progress):
     with open(STATUS_FILE, "w") as f:
         f.write(f"{status}|{progress}")
 
-# 🔹 Delete Old Files
 def clear_old_files():
-    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
-        for filename in os.listdir(folder):
-            file_path = os.path.join(folder, filename)
+    # Delete previous PDF files
+    for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+        if filename.endswith('.pdf'):
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             try:
                 os.remove(file_path)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error deleting file {filename}: {e}")
 
-# 🔹 Extract Text from PDF, HTML, or TXT
-def extract_text(file_path):
-    text = ""
-    if file_path.endswith('.pdf'):
-        reader = PdfReader(file_path)
-        text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
-    elif file_path.endswith('.txt'):
-        with open(file_path, "r", encoding="utf-8") as f:
-            text = f.read()
-    elif file_path.endswith('.html'):
-        with open(file_path, "r", encoding="utf-8") as f:
-            text = f.read()
-    return text.strip()
+def extract_text_from_pdf(pdf_path):
+    pdf_reader = PdfReader(pdf_path)
+    text = []
+    for page in pdf_reader.pages:
+        text.append(page.extract_text())
+    return text
 
-# 🔹 Convert Text to Speech (TTS)
-def convert_to_speech(text, output_filename):
-    tts = gTTS(text, lang="hi")  # Hindi Support
-    output_path = os.path.join(OUTPUT_FOLDER, output_filename)
-    tts.save(output_path)
-    return output_path
+def convert_text_to_speech(text_list):
+    mp3_files = []
+    for idx, text in enumerate(text_list):
+        tts = gTTS(text=text, lang='en')
+        mp3_file = f"{OUTPUT_FOLDER}/audio_{idx}.mp3"
+        tts.save(mp3_file)
+        mp3_files.append(mp3_file)
+    return mp3_files
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# 🔹 Handle File Upload & Processing
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'file' not in request.files:
@@ -67,25 +59,27 @@ def upload():
     if file.filename == '':
         return jsonify({"error": "No file selected!"})
 
-    if file and file.filename.endswith(('.pdf', '.txt', '.html')):
+    if file and file.filename.endswith('.pdf'):
         try:
+            # Clear previous files
             clear_old_files()
-            file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+            
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(file_path)
-
             update_status(f"📂 File uploaded: {file.filename}", 5)
             time.sleep(1)
 
-            update_status("🔍 Extracting text...", 15)
-            extracted_text = extract_text(file_path)
+            update_status("🔍 Extracting text from PDF...", 15)
+            pages_text = extract_text_from_pdf(file_path)
+            extracted_text = "\n".join(pages_text)
 
-            update_status("🎤 Converting to speech...", 50)
-            audio_file = convert_to_speech(extracted_text, "output.mp3")
+            update_status("🎤 Converting text to speech...", 50)
+            mp3_files = convert_text_to_speech(pages_text)
 
             update_status("✅ Conversion complete!", 100)
 
             return jsonify({
-                "mp3_file": "output.mp3",
+                "mp3_files": mp3_files,
                 "extracted_text": extracted_text
             })
 
@@ -94,7 +88,16 @@ def upload():
 
     return jsonify({"error": "Invalid file format!"})
 
-# 🔹 Serve Downloadable MP3 File
+@app.route('/send_text', methods=['POST'])
+def receive_text():
+    data = request.get_json()
+    text = data.get('text', '')
+    # Add your custom processing logic here
+    return jsonify({
+        "received_text": text,
+        "message": "Text received successfully!"
+    })
+
 @app.route('/download/<filename>')
 def download(filename):
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
