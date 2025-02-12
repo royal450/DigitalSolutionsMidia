@@ -1,4 +1,4 @@
 Flask
 gtts
 PyPDF2
-gunicorn
+gubeautifulsoup4
