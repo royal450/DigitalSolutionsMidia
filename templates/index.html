@@ -43,11 +43,20 @@
         }
 
         .progress-bar {
-            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+            background: linear-gradient(90deg, #ff416c, #ff4b2b);
             height: 100%;
             width: 0%;
             border-radius: 10px;
-            transition: width 0.5s ease;
+            transition: width 0.4s ease-in-out;
+        }
+
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            top: -25px;
+            text-align: center;
+            font-size: 14px;
+            color: #fff;
         }
 
         .status-box {
@@ -80,12 +89,6 @@
             box-shadow: 0 6px 20px rgba(255, 65, 108, 0.4);
         }
 
-        .branding {
-            margin-top: 30px;
-            font-size: 14px;
-            color: #bbb;
-        }
-
         .file-upload-label {
             display: flex;
             align-items: center;
@@ -96,15 +99,6 @@
 
         .file-upload-label i {
             font-size: 20px;
-        }
-
-        .play-btn, .download-btn {
-            display: none;
-            margin-top: 15px;
-        }
-
-        .play-btn i, .download-btn i {
-            margin-right: 8px;
         }
 
         .audio-controls {
@@ -126,6 +120,8 @@
             text-align: left;
             max-height: 200px;
             overflow-y: auto;
+            display: none;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
@@ -134,57 +130,42 @@
     <div class="container-box">
         <h3>PDF to MP3</h3>
 
-        <!-- File Upload -->
         <input type="file" id="fileUpload" accept=".pdf" hidden>
         <label for="fileUpload" class="btn-custom file-upload-label">
             <i class="fas fa-cloud-upload-alt"></i> Upload PDF
         </label>
 
-        <!-- Progress Bar -->
         <div class="progress-container">
             <div class="progress-bar"></div>
+            <div class="progress-text">0%</div>
         </div>
 
-        <!-- Status Box -->
         <div class="status-box">Waiting for file...</div>
 
-        <!-- Extracted Text -->
-        <div class="extracted-text" id="extractedText" style="display: none;">
+        <div class="extracted-text" id="extractedText">
             <strong>Extracted Text:</strong>
             <p id="textContent"></p>
         </div>
 
-        <!-- Audio Controls -->
         <div class="audio-controls">
-            <button class="btn-custom play-btn">
+            <button class="btn-custom play-btn" style="display:none;">
                 <i class="fas fa-play"></i> Play Audio
             </button>
-            <button class="btn-custom download-btn">
+            <button class="btn-custom download-btn" style="display:none;">
                 <i class="fas fa-download"></i> Download MP3
             </button>
         </div>
     </div>
 
-    <div class="branding">Crafted with ❤️ by <strong>Royal Developer</strong></div>
-
     <script>
         const fileInput = document.getElementById("fileUpload");
         const progressBar = document.querySelector(".progress-bar");
+        const progressText = document.querySelector(".progress-text");
         const statusBox = document.querySelector(".status-box");
-        const playButton = document.querySelector(".play-btn");
-        const downloadButton = document.querySelector(".download-btn");
         const extractedTextDiv = document.getElementById("extractedText");
         const textContent = document.getElementById("textContent");
-        let audio = null;
-        let isPlaying = false;
-
-        const steps = [
-            "Uploading PDF",
-            "Extracting Text",
-            "Creating Audio",
-            "Downloading Audio",
-            "Complete"
-        ];
+        const playButton = document.querySelector(".play-btn");
+        const downloadButton = document.querySelector(".download-btn");
 
         fileInput.addEventListener("change", async function() {
             if (fileInput.files.length > 0) {
@@ -192,58 +173,42 @@
                 formData.append("file", fileInput.files[0]);
 
                 progressBar.style.width = "0%";
-                statusBox.textContent = "Uploading PDF... 0%";
+                progressText.textContent = "0%";
+                statusBox.textContent = "Uploading PDF...";
 
-                for (let i = 0; i <= 100; i += 5) {
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    progressBar.style.width = i + "%";
-
-                    let stepIndex = Math.floor((i / 100) * steps.length);
-                    statusBox.textContent = `${steps[stepIndex]}... ${i}%`;
-                }
-
-                // Send the file to the backend
                 let response = await fetch("/upload", { method: "POST", body: formData });
                 let data = await response.json();
 
-                if (data.text && data.mp3_files) {
+                if (data.mp3_files) {
                     progressBar.style.width = "100%";
-                    statusBox.textContent = "Conversion Complete!";
+                    progressText.textContent = "100%";
+                    statusBox.textContent = "✅ Conversion Complete!";
+
                     playButton.style.display = "block";
                     downloadButton.style.display = "block";
-                    extractedTextDiv.style.display = "block";
-                    textContent.textContent = data.text;
-                    audio = new Audio(`/output/${data.mp3_files[0]}`);
+
+                    if (data.text) {
+                        extractedTextDiv.style.display = "block";
+                        textContent.textContent = data.text;
+                    }
+
                 } else {
-                    statusBox.textContent = "Error: " + data.error;
+                    statusBox.textContent = "❌ Error: " + data.error;
                     progressBar.style.width = "0%";
+                    progressText.textContent = "0%";
                 }
             }
         });
 
         playButton.addEventListener("click", function() {
-            if (!isPlaying && audio) {
-                audio.play();
-                isPlaying = true;
-                playButton.innerHTML = '<i class="fas fa-pause"></i> Pause Audio';
-
-                audio.onended = function() {
-                    isPlaying = false;
-                    playButton.innerHTML = '<i class="fas fa-play"></i> Play Audio';
-                };
-            } else if (isPlaying) {
-                audio.pause();
-                isPlaying = false;
-                playButton.innerHTML = '<i class="fas fa-play"></i> Play Audio';
-            }
+            let audio = new Audio(`/output/${data.mp3_files[0]}`);
+            audio.play();
         });
 
         downloadButton.addEventListener("click", function() {
-            if (audio) {
-                window.location.href = `/output/${audio.src.split("/").pop()}`;
-            }
+            window.location.href = `/output/${data.mp3_files[0]}`;
         });
     </script>
 
 </body>
-        </html>
+</html>
