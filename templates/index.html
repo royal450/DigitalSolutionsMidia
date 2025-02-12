@@ -3,59 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text-to-Speech Converter</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Text2Speech Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 40px; }
-        #progress-container { display: none; margin-top: 10px; }
-        #progress-bar { width: 0%; height: 20px; background: green; text-align: center; color: white; }
-        #output-container { display: none; margin-top: 20px; }
-        .btn { padding: 10px 15px; margin: 5px; border: none; cursor: pointer; }
-        .btn-play { background: blue; color: white; }
-        .btn-download { background: green; color: white; }
-        .btn-copy { background: orange; color: white; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .upload-box { border: 2px dashed rgba(255,255,255,0.3); transition: all 0.3s ease; }
+        .upload-box:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
     </style>
 </head>
-<body>
-
-    <h1>Text-to-Speech Converter</h1>
-    <input type="file" id="fileInput">
-    <button onclick="uploadFile()">Upload</button>
-
-    <div id="progress-container">
-        <p id="status-text">Uploading...</p>
-        <div id="progress-bar"></div>
-    </div>
-
-    <div id="output-container">
-        <h3>Extracted Text:</h3>
-        <textarea id="extracted-text" rows="6" cols="50"></textarea>
-        <button class="btn btn-copy" onclick="copyText()"><i class="fas fa-copy"></i> Copy</button>
-        <div id="audio-buttons"></div>
+<body class="gradient-bg min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-96">
+        <h1 class="text-xl font-bold text-gray-800 text-center mb-4">Upload Your File</h1>
+        <div class="upload-box p-6 rounded-lg cursor-pointer text-center" id="uploadBox">
+            <p class="text-gray-500">Drag & Drop or Click to Upload</p>
+            <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.html">
+        </div>
+        <div id="progressContainer" class="hidden mt-4">
+            <div class="bg-gray-200 rounded-full h-3">
+                <div id="progressBar" class="bg-purple-600 h-full" style="width: 0%;"></div>
+            </div>
+            <p id="statusText" class="text-gray-600 text-sm mt-2"></p>
+        </div>
+        <div id="resultContainer" class="hidden mt-6">
+            <p class="text-gray-700 text-sm mb-2" id="extractedText"></p>
+            <button class="bg-purple-600 text-white px-4 py-2 rounded-lg mt-2" onclick="copyText()">Copy</button>
+            <div id="audioFiles"></div>
+        </div>
     </div>
 
     <script>
-        function uploadFile() {
-            let file = document.getElementById('fileInput').files[0];
+        $('#uploadBox').click(() => $('#fileInput').click());
+
+        $('#fileInput').change(function() {
+            let file = this.files[0];
             let formData = new FormData();
             formData.append("file", file);
-            document.getElementById("progress-container").style.display = "block";
 
-            fetch("/upload", { method: "POST", body: formData })
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById("extracted-text").value = data.extracted_text;
-                    let audioButtons = data.mp3_files.map(file => 
-                        `<a href="/download/${file}" class="btn btn-download"><i class="fas fa-download"></i> Download</a>
-                        <audio controls><source src="/download/${file}" type="audio/mp3"></audio>`
-                    ).join('');
-                    document.getElementById("audio-buttons").innerHTML = audioButtons;
-                    document.getElementById("output-container").style.display = "block";
-                });
-        }
+            $("#progressContainer").removeClass("hidden");
+            $("#statusText").text("Uploading...");
+
+            $.ajax({
+                url: "/upload",
+                type: "POST",
+                data: formData,
+                contentType: false,
+                processData: false,
+                success: function(data) {
+                    $("#statusText").text("Processing...");
+                    $("#extractedText").text(data.extracted_text);
+                    $("#resultContainer").removeClass("hidden");
+                    data.mp3_files.forEach(file => {
+                        $("#audioFiles").append(`<a href="/download/${file}" class="block mt-2 text-blue-500">Download ${file}</a>`);
+                    });
+                }
+            });
+        });
 
         function copyText() {
-            navigator.clipboard.writeText(document.getElementById("extracted-text").value);
+            navigator.clipboard.writeText($("#extractedText").text());
             alert("Text copied!");
         }
     </script>
