@@ -30,41 +30,41 @@
 <body class="gradient-bg min-h-screen">
     <div class="container mx-auto px-4 py-12">
         <div class="max-w-4xl mx-auto text-center">
-            <h1 class="text-4xl font-bold text-white mb-6 animate-pulse">
+            <h1 class="text-4xl font-bold text-white mb-4 animate-pulse">
                 <i class="fas fa-wave-square"></i> Text2Speech Pro
             </h1>
-
-            <!-- Upload Section -->
+            
+            <!-- Upload Card -->
             <div class="bg-white rounded-xl p-8 upload-container glow">
                 <div id="uploadBox" class="cursor-pointer">
                     <div class="text-6xl text-purple-600 mb-4">
                         <i class="fas fa-cloud-upload-alt"></i>
                     </div>
                     <h2 class="text-2xl font-semibold text-gray-800 mb-2">
-                        Upload File (PDF, TXT, HTML, DOCX)
+                        Drag & Drop Files Here
                     </h2>
-                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.html,.docx">
+                    <p class="text-gray-500 mb-4">
+                        Supported formats: PDF, TXT, HTML
+                    </p>
+                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.html">
                     <button onclick="document.getElementById('fileInput').click()" 
                             class="bg-purple-600 text-white px-6 py-2 rounded-full hover:bg-purple-700 transition-all">
                         Choose File
                     </button>
-                </div>
-
-                <!-- Progress Bar -->
-                <div id="progressSection" class="hidden mt-6">
-                    <div class="h-3 bg-gray-200 rounded-full overflow-hidden">
-                        <div id="progressBar" class="h-full bg-purple-600 transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                    <p id="statusText" class="text-sm text-gray-600 mt-2"></p>
                 </div>
             </div>
 
             <!-- Extracted Text Section -->
             <div id="extractedTextSection" class="mt-8 hidden">
                 <div class="bg-white rounded-xl p-6 glow">
-                    <h3 class="text-xl font-semibold mb-4">
-                        <i class="fas fa-file-alt"></i> Extracted Text
-                    </h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">
+                            <i class="fas fa-file-alt mr-2"></i> Extracted Text
+                        </h3>
+                        <button onclick="copyText()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                            Copy Text <i class="fas fa-copy ml-2"></i>
+                        </button>
+                    </div>
                     <div id="extractedContent" class="text-section bg-gray-50 p-4 rounded-lg text-left whitespace-pre-line"></div>
                 </div>
             </div>
@@ -73,7 +73,7 @@
             <div id="results" class="mt-8 hidden">
                 <div class="bg-white rounded-xl p-6 glow">
                     <h3 class="text-xl font-semibold mb-4">
-                        <i class="fas fa-music"></i> Generated Audio Files
+                        <i class="fas fa-music mr-2"></i> Generated Audio Files
                     </h3>
                     <div id="fileList" class="space-y-3"></div>
                 </div>
@@ -86,8 +86,6 @@
             const formData = new FormData();
             formData.append('file', file);
 
-            document.getElementById('progressSection').classList.remove('hidden');
-            
             try {
                 const response = await fetch('/upload', {
                     method: 'POST',
@@ -100,15 +98,28 @@
                 showExtractedText(data.extracted_text);
                 showResults(data.mp3_files);
             } catch (error) {
-                document.getElementById('statusText').innerText = `Error: ${error.message}`;
+                alert(`Error: ${error.message}`);
             }
         }
 
         function showExtractedText(text) {
             const extractedSection = document.getElementById('extractedTextSection');
             const contentDiv = document.getElementById('extractedContent');
+
+            // Split text into 500-character sections
+            const sections = text.match(/[\s\S]{1,500}/g) || [];
+            contentDiv.innerHTML = sections.map((section, index) => `
+                <div class="mb-4 p-3 border-b border-gray-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-semibold text-purple-600">Section ${index + 1}</span>
+                        <button onclick="playSection(${index})" class="text-purple-600 hover:text-purple-700">
+                            <i class="fas fa-play-circle"></i>
+                        </button>
+                    </div>
+                    <p class="text-gray-700">${section}</p>
+                </div>
+            `).join('');
             
-            contentDiv.innerHTML = `<p>${text.replace(/\n/g, '<br>')}</p>`;
             extractedSection.classList.remove('hidden');
         }
 
@@ -120,8 +131,9 @@
                         <button onclick="playAudio('${file}')" class="text-purple-600 hover:text-purple-700">
                             <i class="fas fa-play"></i>
                         </button>
-                        <a href="/download/${file}" class="bg-purple-600 text-white px-4 py-1 rounded-lg hover:bg-purple-700 transition-all">
-                            Download <i class="fas fa-download ml-2"></i>
+                        <a href="/download/${file}" 
+                           class="bg-purple-600 text-white px-4 py-1 rounded-lg hover:bg-purple-700 transition-all">
+                           Download <i class="fas fa-download ml-2"></i>
                         </a>
                     </div>
                 </div>
@@ -131,16 +143,24 @@
             document.getElementById('results').classList.remove('hidden');
         }
 
+        function copyText() {
+            const text = document.getElementById('extractedContent').innerText;
+            navigator.clipboard.writeText(text)
+                .then(() => alert('Text copied to clipboard!'))
+                .catch(() => alert('Failed to copy text'));
+        }
+
+        function playSection(index) {
+            const sections = document.querySelectorAll('#extractedContent div p');
+            const text = sections[index].innerText;
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
         function playAudio(filename) {
             const audio = new Audio(`/download/${filename}`);
             audio.play();
         }
-
-        document.getElementById('fileInput').addEventListener('change', function() {
-            if (this.files.length > 0) {
-                uploadFile(this.files[0]);
-            }
-        });
     </script>
 </body>
 </html>
