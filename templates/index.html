@@ -21,28 +21,29 @@
         .glow {
             box-shadow: 0 0 20px rgba(118,75,162,0.3);
         }
+        .text-section {
+            max-height: 400px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body class="gradient-bg min-h-screen">
     <div class="container mx-auto px-4 py-12">
         <div class="max-w-4xl mx-auto text-center">
-            <h1 class="text-4xl font-bold text-white mb-4 animate-pulse">
+            <h1 class="text-4xl font-bold text-white mb-6 animate-pulse">
                 <i class="fas fa-wave-square"></i> Text2Speech Pro
             </h1>
-            
-            <!-- Upload Card -->
+
+            <!-- Upload Section -->
             <div class="bg-white rounded-xl p-8 upload-container glow">
                 <div id="uploadBox" class="cursor-pointer">
                     <div class="text-6xl text-purple-600 mb-4">
                         <i class="fas fa-cloud-upload-alt"></i>
                     </div>
                     <h2 class="text-2xl font-semibold text-gray-800 mb-2">
-                        Drag & Drop Files Here
+                        Upload File (PDF, TXT, HTML, DOCX)
                     </h2>
-                    <p class="text-gray-500 mb-4">
-                        Supported formats: PDF, TXT, HTML
-                    </p>
-                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.html">
+                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.html,.docx">
                     <button onclick="document.getElementById('fileInput').click()" 
                             class="bg-purple-600 text-white px-6 py-2 rounded-full hover:bg-purple-700 transition-all">
                         Choose File
@@ -52,10 +53,19 @@
                 <!-- Progress Bar -->
                 <div id="progressSection" class="hidden mt-6">
                     <div class="h-3 bg-gray-200 rounded-full overflow-hidden">
-                        <div id="progressBar" class="h-full bg-purple-600 transition-all duration-300" 
-                             style="width: 0%"></div>
+                        <div id="progressBar" class="h-full bg-purple-600 transition-all duration-300" style="width: 0%"></div>
                     </div>
                     <p id="statusText" class="text-sm text-gray-600 mt-2"></p>
+                </div>
+            </div>
+
+            <!-- Extracted Text Section -->
+            <div id="extractedTextSection" class="mt-8 hidden">
+                <div class="bg-white rounded-xl p-6 glow">
+                    <h3 class="text-xl font-semibold mb-4">
+                        <i class="fas fa-file-alt"></i> Extracted Text
+                    </h3>
+                    <div id="extractedContent" class="text-section bg-gray-50 p-4 rounded-lg text-left whitespace-pre-line"></div>
                 </div>
             </div>
 
@@ -63,7 +73,7 @@
             <div id="results" class="mt-8 hidden">
                 <div class="bg-white rounded-xl p-6 glow">
                     <h3 class="text-xl font-semibold mb-4">
-                        <i class="fas fa-music mr-2"></i>Generated Audio Files
+                        <i class="fas fa-music"></i> Generated Audio Files
                     </h3>
                     <div id="fileList" class="space-y-3"></div>
                 </div>
@@ -72,8 +82,6 @@
     </div>
 
     <script>
-        let userId = Date.now().toString(); // Simple user identification
-        
         async function uploadFile(file) {
             const formData = new FormData();
             formData.append('file', file);
@@ -87,64 +95,52 @@
                 });
                 
                 const data = await response.json();
-                if(data.error) throw new Error(data.error);
+                if (data.error) throw new Error(data.error);
 
+                showExtractedText(data.extracted_text);
                 showResults(data.mp3_files);
             } catch (error) {
-                updateStatusUI(`❌ Error: ${error.message}`, 100, 'text-red-500');
+                document.getElementById('statusText').innerText = `Error: ${error.message}`;
             }
+        }
+
+        function showExtractedText(text) {
+            const extractedSection = document.getElementById('extractedTextSection');
+            const contentDiv = document.getElementById('extractedContent');
+            
+            contentDiv.innerHTML = `<p>${text.replace(/\n/g, '<br>')}</p>`;
+            extractedSection.classList.remove('hidden');
         }
 
         function showResults(files) {
             const fileList = files.map(file => `
                 <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                     <span>${file}</span>
-                    <a href="/download/${file}" 
-                       class="bg-purple-600 text-white px-4 py-1 rounded-lg hover:bg-purple-700 transition-all">
-                       Download <i class="fas fa-download ml-2"></i>
-                    </a>
+                    <div class="space-x-3">
+                        <button onclick="playAudio('${file}')" class="text-purple-600 hover:text-purple-700">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <a href="/download/${file}" class="bg-purple-600 text-white px-4 py-1 rounded-lg hover:bg-purple-700 transition-all">
+                            Download <i class="fas fa-download ml-2"></i>
+                        </a>
+                    </div>
                 </div>
             `).join('');
-            
+
             document.getElementById('fileList').innerHTML = fileList;
             document.getElementById('results').classList.remove('hidden');
         }
 
-        async function checkStatus() {
-            const response = await fetch(`/status/${userId}`);
-            const data = await response.json();
-            updateStatusUI(data.status, data.progress);
-            if(data.progress < 100) setTimeout(checkStatus, 1000);
+        function playAudio(filename) {
+            const audio = new Audio(`/download/${filename}`);
+            audio.play();
         }
 
-        function updateStatusUI(text, progress, colorClass = 'text-purple-600') {
-            document.getElementById('progressBar').style.width = `${progress}%`;
-            document.getElementById('statusText').innerHTML = 
-                `<span class="${colorClass}">${text}</span> (${progress}%)`;
-        }
-
-        // Event Listeners
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if(file) {
-                uploadFile(file);
-                checkStatus();
+        document.getElementById('fileInput').addEventListener('change', function() {
+            if (this.files.length > 0) {
+                uploadFile(this.files[0]);
             }
         });
-
-        // Drag & Drop Handling
-        const uploadBox = document.getElementById('uploadBox');
-        uploadBox.ondragover = (e) => {
-            e.preventDefault();
-            uploadBox.classList.add('bg-purple-50');
-        };
-        uploadBox.ondragleave = () => uploadBox.classList.remove('bg-purple-50');
-        uploadBox.ondrop = (e) => {
-            e.preventDefault();
-            uploadBox.classList.remove('bg-purple-50');
-            const file = e.dataTransfer.files[0];
-            if(file) uploadFile(file);
-        };
     </script>
 </body>
-    </html>
+</html>
