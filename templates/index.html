@@ -1,133 +1,296 @@
+<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text-to-Speech Converter</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <title>NeonTTS - Text to Speech Converter</title>
+    
+    <!-- Styles & Fonts -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
+        :root {
+            --neon-blue: #4dabf7;
+            --neon-purple: #9775fa;
+            --dark-bg: #0a192f;
+        }
+
         body {
-            background: linear-gradient(to right, #141E30, #243B55);
-            color: white;
             font-family: 'Poppins', sans-serif;
-            text-align: center;
+            background: linear-gradient(135deg, #0a192f 0%, #020c1b 100%);
+            color: #c3dafe;
+            min-height: 100vh;
         }
-        .container {
-            margin-top: 50px;
+
+        /* Custom Animations */
+        .glow-border {
+            animation: border-glow 2s infinite alternate;
         }
-        .progress-bar {
-            transition: width 0.4s ease-in-out;
+
+        @keyframes border-glow {
+            from {
+                box-shadow: 0 0 5px var(--neon-blue),
+                            inset 0 0 5px var(--neon-blue);
+            }
+            to {
+                box-shadow: 0 0 20px var(--neon-blue),
+                            inset 0 0 10px var(--neon-blue);
+            }
         }
-        .log-box {
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 14px;
-            height: 200px;
-            overflow-y: auto;
-            text-align: left;
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
         }
-        .output-list a {
-            text-decoration: none;
-            margin: 5px;
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
-        .file-label {
-            font-size: 18px;
-            font-weight: bold;
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
-        .preview-box {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-            text-align: left;
+
+        ::-webkit-scrollbar-track {
+            background: #1a365d;
         }
-        .hidden {
-            display: none;
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-blue);
+            border-radius: 4px;
         }
     </style>
 </head>
-<body>
+<body class="antialiased">
+    <!-- Main Container -->
+    <div class="container py-5">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                NeonTTS
+            </h1>
+            <p class="text-gray-400 mt-2">Convert Documents to Natural Sounding Speech</p>
+        </div>
 
-    <div class="container">
-        <h1 class="mb-4"><i class="fa fa-file-audio"></i> Text-to-Speech Converter</h1>
-        
-        <form id="uploadForm" class="mb-3">
-            <label class="file-label">Upload a file (PDF, HTML, TXT)</label>
-            <input type="file" id="fileInput" accept=".pdf,.html,.txt,.text" class="form-control mb-2">
-            <button type="submit" class="btn btn-warning w-100"><i class="fa fa-upload"></i> Upload & Convert</button>
-        </form>
-
-        <div id="progress-container" class="mt-4 d-none">
-            <p id="progress-status">Initializing...</p>
-            <div class="progress">
-                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width: 0%;"></div>
+        <!-- File Upload Section -->
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-8">
+                <div class="card border border-2 border-primary rounded-lg bg-dark">
+                    <div class="card-body text-center p-5">
+                        <div id="drop-zone" 
+                             class="border-2 border-dashed border-blue-400 rounded-lg p-8 cursor-pointer transition-all hover:bg-opacity-10 hover:bg-blue-500 glow-border">
+                            <i class="fas fa-file-upload fa-3x text-blue-400 mb-3"></i>
+                            <h3 class="text-lg font-semibold mb-2">Drag & Drop Files</h3>
+                            <p class="text-gray-400 text-sm mb-4">Supported formats: PDF, HTML, TXT</p>
+                            <input type="file" id="fileInput" class="hidden" accept=".pdf,.html,.txt,.text">
+                            <button onclick="document.getElementById('fileInput').click()" 
+                                    class="btn btn-outline-primary rounded-pill px-6">
+                                Browse Files
+                            </button>
+                            <div id="filePreview" class="mt-3 text-sm text-blue-300"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div id="log-container" class="log-box mt-3 d-none"></div>
+        <!-- Progress & Status -->
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-8">
+                <div class="card bg-dark border border-primary rounded-lg">
+                    <div class="card-body">
+                        <!-- Progress Bar -->
+                        <div id="progressContainer" class="mb-4" style="display: none;">
+                            <div class="flex justify-between mb-2">
+                                <span class="text-sm text-blue-300">Processing...</span>
+                                <span id="progressPercent" class="text-sm text-blue-300">0%</span>
+                            </div>
+                            <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
+                                <div id="progressBar" 
+                                     class="h-full bg-gradient-to-r from-blue-400 to-purple-500 transition-all duration-500"
+                                     style="width: 0%"></div>
+                            </div>
+                        </div>
 
-        <h3 class="mt-3 hidden" id="text-preview-title">Extracted Text</h3>
-        <div id="text-preview" class="preview-box d-none"></div>
+                        <!-- Live Logs -->
+                        <div id="logContainer" class="bg-gray-900 rounded-lg p-3 h-40 overflow-y-auto">
+                            <div id="statusLogs" class="space-y-2">
+                                <!-- Status messages will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        <div id="output-container" class="output-list mt-3"></div>
+        <!-- Extracted Text & Audio Player -->
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <!-- Extracted Text -->
+                <div id="textPreview" 
+                     class="card bg-dark border border-primary rounded-lg mb-4"
+                     style="display: none;">
+                    <div class="card-body">
+                        <h3 class="text-lg font-semibold mb-3">Extracted Text</h3>
+                        <div id="extractedTextContent"
+                             class="h-64 overflow-y-auto p-3 bg-gray-900 rounded-lg text-gray-300">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audio Player -->
+                <div id="audioPlayer" class="card bg-dark border border-primary rounded-lg" style="display: none;">
+                    <div class="card-body">
+                        <h3 class="text-lg font-semibold mb-3">Generated Audio</h3>
+                        <div class="flex items-center justify-between">
+                            <audio id="audioElement" controls class="flex-1 mr-4">
+                                Your browser does not support the audio element.
+                            </audio>
+                            <button id="downloadBtn" 
+                                    class="btn btn-outline-success rounded-pill px-4"
+                                    disabled>
+                                <i class="fas fa-download mr-2"></i>Download MP3
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        $("#uploadForm").submit(function(event) {
-            event.preventDefault();
-            var formData = new FormData();
-            formData.append("file", $("#fileInput")[0].files[0]);
+        // Drag & Drop Handlers
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('fileInput');
 
-            $("#progress-container").removeClass("d-none");
-            $("#log-container").removeClass("d-none").html("");
-            $("#text-preview").addClass("d-none");
-            $("#output-container").html(""); // Clear previous outputs
-
-            $.ajax({
-                url: "/upload",
-                type: "POST",
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    if (response.extracted_text) {
-                        $("#text-preview-title").removeClass("hidden");
-                        $("#text-preview").removeClass("d-none").html(`<pre>${response.extracted_text}</pre>`);
-                    }
-                    if (response.mp3_files) {
-                        let outputContainer = $("#output-container");
-                        outputContainer.html("<h3>Download & Play:</h3>");
-                        response.mp3_files.forEach(file => {
-                            outputContainer.append(`
-                                <p>
-                                    <audio controls>
-                                        <source src="/output/${file}" type="audio/mpeg">
-                                        Your browser does not support the audio element.
-                                    </audio>
-                                    <a href="/output/${file}" target="_blank" class="btn btn-success"><i class="fa fa-play"></i> Play</a>
-                                    <a href="/output/${file}" download class="btn btn-primary"><i class="fa fa-download"></i> Download</a>
-                                </p>`);
-                        });
-                    }
-                }
-            });
-
-            setInterval(checkStatus, 1000);
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
         });
 
-        function checkStatus() {
-            $.get("/status", function(data) {
-                $("#progress-status").text(data.status);
-                $("#progress-bar").css("width", data.progress + "%");
-                $("#log-container").append(`<p>${data.status}</p>`);
-                $("#log-container").scrollTop($("#log-container")[0].scrollHeight);
-            });
-        }
-    </script>
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+        });
 
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+            const files = e.dataTransfer.files;
+            if (files.length) handleFile(files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        // File Handling
+        async function handleFile(file) {
+            if (!file) return;
+
+            // Validate file type
+            const allowedTypes = ['application/pdf', 'text/html', 'text/plain'];
+            if (!allowedTypes.includes(file.type) && !file.name.match(/\.(txt|text)$/)) {
+                showError('Invalid file type!');
+                return;
+            }
+
+            // Show file preview
+            document.getElementById('filePreview').textContent = `Selected file: ${file.name}`;
+            
+            // Start upload
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showProgress(true);
+                addLog('📤 Uploading file...', 'info');
+
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                addLog('✅ Conversion complete!', 'success');
+                showAudioPlayer(data.mp3_files[0]);
+                showTextPreview(data.extracted_text);
+            } catch (error) {
+                addLog(`❌ Error: ${error.message}`, 'error');
+                showError(error.message);
+            } finally {
+                showProgress(false);
+            }
+        }
+
+        // Status Polling
+        function pollStatus() {
+            setInterval(async () => {
+                const response = await fetch('/status');
+                const status = await response.json();
+                
+                document.getElementById('progressBar').style.width = `${status.progress}%`;
+                document.getElementById('progressPercent').textContent = `${status.progress}%`;
+                
+                if (status.status !== 'Idle') {
+                    addLog(status.status, 'info');
+                }
+            }, 1000);
+        }
+
+        // UI Helpers
+        function addLog(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `flex items-center text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
+            
+            const icon = type === 'error' ? '❌' :
+                         type === 'success' ? '✅' : 'ℹ️';
+            
+            logEntry.innerHTML = `
+                <span class="mr-2">${icon}</span>
+                <span>${message}</span>
+            `;
+            
+            document.getElementById('statusLogs').appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function showProgress(show) {
+            document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
+        }
+
+        function showTextPreview(text) {
+            document.getElementById('textPreview').style.display = 'block';
+            document.getElementById('extractedTextContent').textContent = text;
+            document.getElementById('extractedTextContent').classList.add('fade-in');
+        }
+
+        function showAudioPlayer(filename) {
+            const audioPlayer = document.getElementById('audioPlayer');
+            const audioElement = document.getElementById('audioElement');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            audioPlayer.style.display = 'block';
+            audioElement.src = `/output/${filename}`;
+            downloadBtn.disabled = false;
+            downloadBtn.onclick = () => {
+                const link = document.createElement('a');
+                link.href = audioElement.src;
+                link.download = filename;
+                link.click();
+            };
+        }
+
+        // Initialize
+        pollStatus();
+    </script>
 </body>
-</html>
+                                                                                  </html>
