@@ -1,12 +1,11 @@
 from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS  # CORS को इम्पोर्ट करो
+from flask_cors import CORS
 import os
 from gtts import gTTS
-from PyPDF2 import PdfFileReader
-import time
+from PyPDF2 import PdfReader
 
 app = Flask(__name__)
-CORS(app)  # CORS enable कर दिया
+CORS(app)
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'output'
@@ -15,6 +14,11 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+# ✅ Home Route Fix
+@app.route('/')
+def home():
+    return jsonify({"message": "PDF to MP3 Converter API is Live!"})
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -42,9 +46,8 @@ def upload():
 def extract_text_from_pdf(pdf_path):
     pages_text = []
     with open(pdf_path, "rb") as file:
-        reader = PdfFileReader(file)
-        for page_num in range(reader.getNumPages()):
-            page = reader.getPage(page_num)
+        reader = PdfReader(file)
+        for page in reader.pages:
             pages_text.append(page.extract_text().strip() if page.extract_text() else '')
     return pages_text
 
@@ -68,6 +71,3 @@ def serve_audio(filename):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-
