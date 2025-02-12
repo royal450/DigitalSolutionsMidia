@@ -19,7 +19,6 @@
             font-family: 'Poppins', sans-serif;
             text-align: center;
             padding-top: 50px;
-            margin: 0;
         }
 
         .container-box {
@@ -43,20 +42,11 @@
         }
 
         .progress-bar {
-            background: linear-gradient(90deg, #ff416c, #ff4b2b);
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
             height: 100%;
             width: 0%;
             border-radius: 10px;
-            transition: width 0.4s ease-in-out;
-        }
-
-        .progress-text {
-            position: absolute;
-            width: 100%;
-            top: -25px;
-            text-align: center;
-            font-size: 14px;
-            color: #fff;
+            transition: width 0.5s ease;
         }
 
         .status-box {
@@ -89,6 +79,12 @@
             box-shadow: 0 6px 20px rgba(255, 65, 108, 0.4);
         }
 
+        .branding {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #bbb;
+        }
+
         .file-upload-label {
             display: flex;
             align-items: center;
@@ -97,19 +93,9 @@
             cursor: pointer;
         }
 
-        .file-upload-label i {
-            font-size: 20px;
-        }
-
-        .audio-controls {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .audio-controls button {
-            flex: 1;
+        .play-btn, .download-btn {
+            display: none;
+            margin-top: 15px;
         }
 
         .extracted-text {
@@ -121,7 +107,6 @@
             max-height: 200px;
             overflow-y: auto;
             display: none;
-            border: 1px solid rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
@@ -130,42 +115,42 @@
     <div class="container-box">
         <h3>PDF to MP3</h3>
 
+        <!-- File Upload -->
         <input type="file" id="fileUpload" accept=".pdf" hidden>
         <label for="fileUpload" class="btn-custom file-upload-label">
             <i class="fas fa-cloud-upload-alt"></i> Upload PDF
         </label>
 
+        <!-- Progress Bar -->
         <div class="progress-container">
             <div class="progress-bar"></div>
-            <div class="progress-text">0%</div>
         </div>
 
+        <!-- Status Box -->
         <div class="status-box">Waiting for file...</div>
 
+        <!-- Extracted Text -->
         <div class="extracted-text" id="extractedText">
             <strong>Extracted Text:</strong>
             <p id="textContent"></p>
         </div>
 
-        <div class="audio-controls">
-            <button class="btn-custom play-btn" style="display:none;">
-                <i class="fas fa-play"></i> Play Audio
-            </button>
-            <button class="btn-custom download-btn" style="display:none;">
-                <i class="fas fa-download"></i> Download MP3
-            </button>
-        </div>
+        <!-- Audio Controls -->
+        <button class="btn-custom play-btn"><i class="fas fa-play"></i> Play Audio</button>
+        <button class="btn-custom download-btn"><i class="fas fa-download"></i> Download MP3</button>
     </div>
+
+    <div class="branding">Crafted with ❤️ by <strong>Royal Developer</strong></div>
 
     <script>
         const fileInput = document.getElementById("fileUpload");
         const progressBar = document.querySelector(".progress-bar");
-        const progressText = document.querySelector(".progress-text");
         const statusBox = document.querySelector(".status-box");
-        const extractedTextDiv = document.getElementById("extractedText");
-        const textContent = document.getElementById("textContent");
         const playButton = document.querySelector(".play-btn");
         const downloadButton = document.querySelector(".download-btn");
+        const extractedTextDiv = document.getElementById("extractedText");
+        const textContent = document.getElementById("textContent");
+        let audio = null;
 
         fileInput.addEventListener("change", async function() {
             if (fileInput.files.length > 0) {
@@ -173,41 +158,49 @@
                 formData.append("file", fileInput.files[0]);
 
                 progressBar.style.width = "0%";
-                progressText.textContent = "0%";
                 statusBox.textContent = "Uploading PDF...";
 
                 let response = await fetch("/upload", { method: "POST", body: formData });
                 let data = await response.json();
 
-                if (data.mp3_files) {
+                if (data.mp3_files && data.text) {
                     progressBar.style.width = "100%";
-                    progressText.textContent = "100%";
-                    statusBox.textContent = "✅ Conversion Complete!";
-
+                    statusBox.textContent = "Conversion Complete!";
                     playButton.style.display = "block";
                     downloadButton.style.display = "block";
-
-                    if (data.text) {
-                        extractedTextDiv.style.display = "block";
-                        textContent.textContent = data.text;
-                    }
-
+                    extractedTextDiv.style.display = "block";
+                    textContent.textContent = data.text;
+                    audio = new Audio(`/output/${data.mp3_files[0]}`);
                 } else {
-                    statusBox.textContent = "❌ Error: " + data.error;
-                    progressBar.style.width = "0%";
-                    progressText.textContent = "0%";
+                    statusBox.textContent = "Error: " + data.error;
                 }
             }
         });
 
         playButton.addEventListener("click", function() {
-            let audio = new Audio(`/output/${data.mp3_files[0]}`);
-            audio.play();
+            if (audio) {
+                audio.play();
+            }
         });
 
         downloadButton.addEventListener("click", function() {
-            window.location.href = `/output/${data.mp3_files[0]}`;
+            if (audio) {
+                window.location.href = `/output/${audio.src.split("/").pop()}`;
+            }
         });
+
+        async function updateProgress() {
+            let response = await fetch("/status");
+            let data = await response.json();
+            progressBar.style.width = data.progress + "%";
+            statusBox.textContent = data.status;
+
+            if (data.progress < 100) {
+                setTimeout(updateProgress, 1000);
+            }
+        }
+
+        updateProgress();
     </script>
 
 </body>
