@@ -45,7 +45,7 @@ def upload():
     try:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(file_path)
-        update_status(f"📂 File uploaded: {file.filename}", 5)
+        update_status(f"📤 Uploading file: {file.filename}", 5)
         time.sleep(1)
 
         update_status("🔍 Extracting text...", 15)
@@ -112,4 +112,12 @@ def serve_audio(filename):
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+
+app.run(debug=True, port=5000)  # Yahan 5000 port define kiya hai
+
+
+
+
+
+
+
