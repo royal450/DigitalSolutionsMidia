@@ -3,125 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Premium PDF Converter</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>PDF to MP3 Converter</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .premium-box {
-            border: 2px solid #3B82F6;
-            border-radius: 15px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+        body {
+            background: #121212;
+            color: white;
+            font-family: 'Poppins', sans-serif;
+            text-align: center;
         }
-        .premium-box:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        .container {
+            max-width: 500px;
+            margin: auto;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.2);
+        }
+        .progress-bar {
+            width: 0%;
+            height: 5px;
+            background: #ff9800;
+            transition: width 0.5s;
+        }
+        .hidden {
+            display: none;
+        }
+        .btn-primary {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(45deg, #ff4b2b, #ff416c);
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <h1 class="text-4xl font-bold text-center text-blue-600 mb-8">Premium PDF Converter</h1>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- PDF Upload Section -->
-            <div class="premium-box bg-white p-6">
-                <h2 class="text-2xl font-semibold mb-4">PDF to Audio Converter</h2>
-                <input type="file" id="fileInput" class="mb-4" accept=".pdf">
-                <button onclick="uploadFile()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
-                    Convert to Audio
-                </button>
-                <div class="mt-4">
-                    <div id="statusBar" class="h-2 bg-gray-200 rounded">
-                        <div id="progress" class="h-full bg-blue-600 rounded transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                    <div id="statusText" class="mt-2 text-sm text-gray-600"></div>
-                </div>
-                <div class="mt-6">
-                    <h3 class="font-semibold mb-2">Extracted Text:</h3>
-                    <div id="extractedText" class="bg-gray-50 p-4 rounded-lg h-64 overflow-y-auto"></div>
-                </div>
-            </div>
-
-            <!-- Text Communication Section -->
-            <div class="premium-box bg-white p-6">
-                <h2 class="text-2xl font-semibold mb-4">Text Communication</h2>
-                <div class="mb-4">
-                    <textarea id="messageInput" class="w-full p-3 border rounded-lg" placeholder="Enter GSM and Vacancy details..."></textarea>
-                    <button onclick="sendText()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition mt-2">
-                        Send Text
-                    </button>
-                </div>
-                <div>
-                    <h3 class="font-semibold mb-2">Received Text:</h3>
-                    <div id="receivedText" class="bg-gray-50 p-4 rounded-lg h-64 overflow-y-auto"></div>
-                </div>
-            </div>
+<body>
+    <div class="container glass mt-5">
+        <h2>📂 PDF to MP3 Converter</h2>
+        <input type="file" id="fileUpload" class="form-control mt-3">
+        <button id="uploadBtn" class="btn btn-primary mt-3">Upload & Convert</button>
+        <div class="progress mt-3 hidden">
+            <div id="progressBar" class="progress-bar"></div>
         </div>
-
-        <!-- Audio Player Section -->
-        <div class="premium-box bg-white p-6 mt-6">
-            <h2 class="text-2xl font-semibold mb-4">Generated Audio Files</h2>
-            <div id="audioFiles" class="space-y-4"></div>
-        </div>
+        <p id="statusText" class="mt-3"></p>
+        <a id="downloadBtn" class="btn btn-success mt-3 hidden">Download MP3</a>
     </div>
 
     <script>
-        function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
-            const formData = new FormData();
-            formData.append('file', file);
+        $("#uploadBtn").click(function() {
+            let file = $("#fileUpload")[0].files[0];
+            if (!file) {
+                M.toast({html: 'Please select a PDF file!', classes: 'red darken-4'});
+                return;
+            }
+            let formData = new FormData();
+            formData.append("file", file);
+            $(".progress").removeClass("hidden");
+            $("#statusText").text("Uploading...");
+            let progress = 0;
+            let interval = setInterval(() => {
+                progress += 10;
+                if (progress > 90) clearInterval(interval);
+                $("#progressBar").css("width", progress + "%");
+            }, 500);
 
-            fetch('/upload', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                    return;
-                }
-                // Display extracted text
-                document.getElementById('extractedText').textContent = data.extracted_text;
-                // Display audio files
-                const audioFilesDiv = document.getElementById('audioFiles');
-                audioFilesDiv.innerHTML = data.mp3_files.map(file => `
-                    <div class="audio-player bg-gray-50 p-4 rounded-lg">
-                        <p class="font-medium">${file}</p>
-                        <audio controls class="mt-2 w-full">
-                            <source src="/output/${file}" type="audio/mpeg">
-                            Your browser does not support the audio element.
-                        </audio>
-                    </div>
-                `).join('');
-            });
-        }
-
-        function sendText() {
-            const text = document.getElementById('messageInput').value;
-            fetch('/send_text', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+            $.ajax({
+                url: "/upload",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    clearInterval(interval);
+                    $("#progressBar").css("width", "100%");
+                    $("#statusText").text("✅ Conversion Complete!");
+                    $("#downloadBtn").attr("href", response.mp3_files[0]).removeClass("hidden");
                 },
-                body: JSON.stringify({ text: text })
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('receivedText').textContent = data.received_text;
+                error: function(err) {
+                    M.toast({html: 'Error: ' + err.responseText, classes: 'red darken-4'});
+                }
             });
-        }
-
-        // Status checking logic
-        setInterval(() => {
-            fetch('/status')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('progress').style.width = data.progress + '%';
-                document.getElementById('statusText').textContent = data.status;
-            });
-        }, 1000);
+        });
     </script>
 </body>
-    </html>
+</html>
