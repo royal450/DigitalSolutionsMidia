@@ -3,7 +3,6 @@ import os
 from gtts import gTTS
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
-import docx
 import time
 
 app = Flask(__name__)
@@ -18,12 +17,11 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# Function to update status
 def update_status(status, progress):
     with open(STATUS_FILE, "w") as f:
         f.write(f"{status}|{progress}")
 
-# Extract text from PDF
+# Function to extract text from PDF
 def extract_text_from_pdf(pdf_path):
     text = []
     reader = PdfReader(pdf_path)
@@ -31,23 +29,19 @@ def extract_text_from_pdf(pdf_path):
         text.append(page.extract_text() or "")
     return text
 
-# Extract text from TXT
+# Function to extract text from TXT files
 def extract_text_from_txt(txt_path):
     with open(txt_path, 'r', encoding='utf-8') as file:
         return file.read().splitlines()
 
-# Extract text from HTML
+# Function to extract text from HTML files
 def extract_text_from_html(html_path):
     with open(html_path, 'r', encoding='utf-8') as file:
         soup = BeautifulSoup(file, 'html.parser')
-        return soup.get_text(separator="\n").splitlines()
+        text = soup.get_text(separator="\n")
+        return text.splitlines()
 
-# Extract text from DOCX
-def extract_text_from_docx(docx_path):
-    doc = docx.Document(docx_path)
-    return [para.text for para in doc.paragraphs]
-
-# Convert extracted text to speech
+# Function to convert text to speech
 def convert_text_to_speech(text_list):
     mp3_files = []
     for i, text in enumerate(text_list):
@@ -57,7 +51,7 @@ def convert_text_to_speech(text_list):
             mp3_path = os.path.join(app.config['OUTPUT_FOLDER'], mp3_filename)
             tts.save(mp3_path)
             mp3_files.append(mp3_filename)
-            update_status(f"Converting section {i+1}...", int((i+1) / len(text_list) * 100))
+            update_status(f"Converting page {i+1} to speech...", int((i+1)/len(text_list) * 100))
             time.sleep(1)
     return mp3_files
 
@@ -77,7 +71,7 @@ def upload():
     update_status(f"File uploaded: {file.filename}", 5)
     time.sleep(1)
 
-    # Determine file type and extract text
+    # Determine file type and extract text accordingly
     if file.filename.endswith('.pdf'):
         update_status("Extracting text from PDF...", 15)
         pages_text = extract_text_from_pdf(file_path)
@@ -88,9 +82,6 @@ def upload():
     elif file.filename.endswith('.html'):
         update_status("Extracting text from HTML...", 15)
         extracted_text = "\n\n".join(extract_text_from_html(file_path))
-    elif file.filename.endswith('.docx'):
-        update_status("Extracting text from DOCX...", 15)
-        extracted_text = "\n\n".join(extract_text_from_docx(file_path))
     else:
         return jsonify({"error": "Unsupported file format!"})
 
@@ -118,4 +109,4 @@ def get_status():
         return jsonify({"status": "Initializing...", "progress": 0})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
