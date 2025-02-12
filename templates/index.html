@@ -3,143 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF to Audio Converter</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>PDF to MP3 Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KyZXEJ+vC6Xb3xT12cXgxXc1K3U0x9eOV7hzRzGsY1d2vRgg7ddfhbSxMJ+7tnuF" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         body {
             background-color: #121212;
             color: white;
-            text-align: center;
-        }
-        .container {
-            margin-top: 50px;
-        }
-        #progress-container {
-            display: none;
-            margin-top: 20px;
-        }
-        #play-btn, #download-btn {
-            display: none;
-            margin-top: 20px;
-        }
-        #text-box {
-            display: none;
-            margin-top: 20px;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            text-align: left;
+            font-family: 'Arial', sans-serif;
         }
         .highlight {
-            background-color: yellow;
-            color: black;
+            background-color: #ffcc00;
+            font-weight: bold;
+        }
+        .container {
+            max-width: 900px;
+            margin-top: 50px;
+        }
+        .file-input {
+            margin-bottom: 20px;
+        }
+        .text-box {
+            margin-top: 20px;
+            font-size: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #333;
+            padding: 10px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2 class="text-3xl font-bold">PDF to Audio Converter</h2>
-        
-        <input type="file" id="file-upload" class="mt-4">
-        <button class="btn btn-primary mt-3" onclick="uploadFile()">Upload</button>
-        
-        <div id="progress-container">
-            <div class="progress">
-                <div id="progress-bar" class="determinate" style="width: 0%"></div>
-            </div>
-            <p id="status-text">Waiting for upload...</p>
-        </div>
-        
-        <button id="play-btn" class="btn btn-success" onclick="toggleAudio()">▶ Play</button>
-        <button id="download-btn" class="btn btn-warning" onclick="downloadAudio()">⬇ Download</button>
-
-        <div id="text-box">
-            <h4>Extracted Text</h4>
-            <p id="extracted-text"></p>
-        </div>
+<div class="container">
+    <h1 class="text-center">PDF to MP3 Converter</h1>
+    <div class="file-input text-center">
+        <input type="file" id="fileInput" accept=".pdf" class="form-control" />
     </div>
+    <button id="uploadBtn" class="btn btn-primary w-100">Upload & Convert</button>
+    <div id="status" class="text-center mt-3"></div>
+    <div id="extractedText" class="text-box"></div>
+    <div id="audioControls" class="text-center mt-3">
+        <button id="playBtn" class="btn btn-primary w-100 mb-2" disabled>Play</button>
+        <button id="downloadBtn" class="btn btn-success w-100" disabled>Download</button>
+    </div>
+</div>
 
-    <script>
-        let audio = new Audio();
-        let words = [];
-        let index = 0;
-        let playing = false;
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    let mp3Files = [];
+    let currentAudio = new Audio();
+    let isPlaying = false;
 
-        function uploadFile() {
-            let file = document.getElementById("file-upload").files[0];
-            if (!file) {
-                alert("Please select a file!");
-                return;
-            }
-            
+    $('#uploadBtn').click(function() {
+        let file = $('#fileInput')[0].files[0];
+        if (file) {
             let formData = new FormData();
             formData.append("file", file);
-            
-            document.getElementById("progress-container").style.display = "block";
-            updateProgress("Uploading...", 5);
 
-            fetch("/upload", {
-                method: "POST",
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    words = data.extracted_text.split(" ");
-                    document.getElementById("extracted-text").innerHTML = words.map(w => `<span>${w}</span>`).join(" ");
-                    document.getElementById("text-box").style.display = "block";
-                    
-                    audio.src = "/output/audio.mp3";
-                    document.getElementById("play-btn").style.display = "inline-block";
-                    document.getElementById("download-btn").style.display = "inline-block";
-
-                    updateProgress("Conversion Complete!", 100);
+            $.ajax({
+                url: '/upload',
+                type: 'POST',
+                data: formData,
+                contentType: false,
+                processData: false,
+                success: function(response) {
+                    if (response.error) {
+                        $('#status').text(response.error);
+                    } else {
+                        $('#status').text('Conversion Complete!');
+                        mp3Files = response.mp3_files;
+                        $('#extractedText').text(response.extracted_text);
+                        $('#playBtn').prop('disabled', false);
+                        $('#downloadBtn').prop('disabled', false);
+                    }
+                },
+                error: function() {
+                    $('#status').text('Error in file upload!');
                 }
-            })
-            .catch(error => console.error("Error:", error));
+            });
         }
+    });
 
-        function updateProgress(status, percent) {
-            document.getElementById("status-text").innerText = status;
-            document.getElementById("progress-bar").style.width = percent + "%";
+    $('#playBtn').click(function() {
+        if (isPlaying) {
+            currentAudio.pause();
+            $('#playBtn').text('Play');
+        } else {
+            let audioUrl = mp3Files[0];
+            currentAudio.src = audioUrl;
+            currentAudio.play();
+            $('#playBtn').text('Pause');
         }
+        isPlaying = !isPlaying;
+    });
 
-        function toggleAudio() {
-            if (!playing) {
-                audio.play();
-                document.getElementById("play-btn").innerText = "⏸ Pause";
-                playing = true;
-                highlightWords();
-            } else {
-                audio.pause();
-                document.getElementById("play-btn").innerText = "▶ Play";
-                playing = false;
-            }
-        }
-
-        function highlightWords() {
-            let spans = document.getElementById("extracted-text").getElementsByTagName("span");
-            let interval = setInterval(() => {
-                if (!playing || index >= words.length) {
-                    clearInterval(interval);
-                    index = 0;
-                    return;
-                }
-                if (index > 0) spans[index - 1].classList.remove("highlight");
-                spans[index].classList.add("highlight");
-                index++;
-            }, 500);
-        }
-
-        function downloadAudio() {
-            window.location.href = "/output/audio.mp3";
-        }
-    </script>
+    $('#downloadBtn').click(function() {
+        window.location.href = '/download/' + mp3Files[0].split('/').pop();
+    });
+</script>
 
 </body>
 </html>
