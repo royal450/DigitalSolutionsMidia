@@ -3,59 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Royal Developer | PDF to MP3 Pro</title>
-    
-    <!-- Bootstrap & Font Awesome -->
+    <title>Royal Developer | PDF to MP3</title>
+
+    <!-- Bootstrap & FontAwesome -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
-        :root {
-            --primary-gradient: linear-gradient(135deg, #1e3c72, #2a5298);
-            --secondary-gradient: linear-gradient(45deg, #ff416c, #ff4b2b);
-            --text-light: #fff;
-            --text-dark: #222;
-        }
-
         body {
-            background: var(--primary-gradient);
-            color: var(--text-light);
+            background-color: #121212;
+            color: white;
             font-family: 'Poppins', sans-serif;
-            min-height: 100vh;
-        }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(12px);
-            border-radius: 15px;
-            padding: 2rem;
-            margin-top: 3rem;
             text-align: center;
+            padding-top: 50px;
         }
 
-        .developer-badge {
-            background: var(--secondary-gradient);
-            padding: 10px 20px;
-            border-radius: 30px;
-            font-size: 1rem;
-            display: inline-block;
-            font-weight: bold;
-        }
-
-        .upload-label {
-            background: var(--secondary-gradient);
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
+        .container-box {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            width: 350px;
+            margin: auto;
         }
 
         .progress-container {
@@ -63,153 +34,147 @@
             height: 10px;
             border-radius: 10px;
             overflow: hidden;
-            margin: 1.5rem 0;
+            margin-top: 15px;
         }
 
         .progress-bar {
-            background: var(--secondary-gradient);
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
             height: 100%;
             width: 0%;
-            transition: width 0.3s ease-in-out;
         }
 
-        .action-buttons {
-            display: none;
-            gap: 1rem;
-            margin-top: 2rem;
-            justify-content: center;
+        .status-box {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-size: 14px;
         }
 
-        .action-btn {
-            background: var(--secondary-gradient);
-            border: none;
-            padding: 12px 30px;
-            border-radius: 50px;
+        .btn-custom {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
             color: white;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-weight: bold;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 15px;
+            display: block;
+            width: 100%;
         }
 
         .branding {
-            margin-top: 40px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 1.2rem;
-            color: #ddd;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #bbb;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="glass-card">
-        <div class="developer-badge">🏆 Royal Developer Exclusive</div>
-        
-        <h1 class="text-center fw-bold mt-3">PDF to MP3 Pro</h1>
-        
-        <label for="fileUpload" class="upload-label mt-3">
+    <div class="container-box">
+        <h3>PDF to MP3</h3>
+
+        <!-- File Upload -->
+        <input type="file" id="fileUpload" accept=".pdf" hidden>
+        <label for="fileUpload" class="btn-custom">
             <i class="fas fa-cloud-upload-alt"></i> Upload PDF
         </label>
-        <input type="file" id="fileUpload" accept=".pdf" hidden>
 
+        <!-- Progress Bar -->
         <div class="progress-container">
             <div class="progress-bar"></div>
         </div>
 
-        <div class="status-text">Waiting for File...</div>
+        <!-- Status Box -->
+        <div class="status-box">Waiting for file...</div>
 
-        <div class="action-buttons">
-            <button class="action-btn play-btn">
-                <i class="fas fa-play"></i> Play Audio
-            </button>
-            <button class="action-btn download-btn">
-                <i class="fas fa-download"></i> Download MP3
-            </button>
-        </div>
+        <!-- Action Buttons -->
+        <button class="btn-custom play-btn" style="display: none;">
+            <i class="fas fa-play"></i> Play Audio
+        </button>
+        <button class="btn-custom download-btn" style="display: none;">
+            <i class="fas fa-download"></i> Download MP3
+        </button>
     </div>
 
     <div class="branding">Crafted with ❤️ by <strong>Royal Developer</strong></div>
-</div>
 
-<script>
-    const fileInput = document.getElementById("fileUpload");
-    const progressBar = document.querySelector(".progress-bar");
-    const statusText = document.querySelector(".status-text");
-    const actionButtons = document.querySelector(".action-buttons");
-    const playButton = document.querySelector(".play-btn");
-    const downloadButton = document.querySelector(".download-btn");
-    let isPlaying = false;
-    let audio = null;
+    <script>
+        const fileInput = document.getElementById("fileUpload");
+        const progressBar = document.querySelector(".progress-bar");
+        const statusBox = document.querySelector(".status-box");
+        const playButton = document.querySelector(".play-btn");
+        const downloadButton = document.querySelector(".download-btn");
+        let audio = null;
+        let isPlaying = false;
 
-    fileInput.addEventListener("change", async function() {
-        if (fileInput.files.length > 0) {
-            let formData = new FormData();
-            formData.append("file", fileInput.files[0]);
+        const steps = [
+            "Uploading PDF",
+            "Creating Audio",
+            "Downloading Audio",
+            "Initializing Slice Process",
+            "Complete",
+            "Speak Now",
+            "Speaking"
+        ];
 
-            Swal.fire({
-                title: "Uploading...",
-                text: "Please wait while the file is being uploaded",
-                icon: "info",
-                allowOutsideClick: false,
-                showConfirmButton: false
-            });
+        fileInput.addEventListener("change", async function() {
+            if (fileInput.files.length > 0) {
+                let formData = new FormData();
+                formData.append("file", fileInput.files[0]);
 
-            for (let i = 10; i <= 100; i += 10) {
-                await new Promise(resolve => setTimeout(resolve, 500));
-                progressBar.style.width = i + "%";
-                statusText.textContent = `Uploading... ${i}%`;
-            }
-
-            let response = await fetch("/upload", { method: "POST", body: formData });
-            let data = await response.json();
-
-            if (data.mp3_files) {
-                Swal.fire({
-                    title: "Success!",
-                    text: "Conversion Complete",
-                    icon: "success"
-                });
-
-                progressBar.style.width = "100%";
-                statusText.textContent = "Conversion Complete!";
-                actionButtons.style.display = "flex";
-                audio = new Audio(`/output/${data.mp3_files[0]}`);
-            } else {
-                Swal.fire({
-                    title: "Error!",
-                    text: data.error,
-                    icon: "error"
-                });
-                statusText.textContent = "Error: " + data.error;
                 progressBar.style.width = "0%";
-            }
-        }
-    });
+                statusBox.textContent = "Uploading PDF... 0%";
 
-    playButton.addEventListener("click", function() {
-        if (!isPlaying && audio) {
-            audio.play();
-            isPlaying = true;
-            playButton.innerHTML = '<i class="fas fa-pause"></i> Pause Audio';
-            audio.onended = function() {
+                for (let i = 0; i <= 100; i += 5) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    progressBar.style.width = i + "%";
+
+                    let stepIndex = Math.floor((i / 100) * steps.length);
+                    statusBox.textContent = `${steps[stepIndex]}... ${i}%`;
+                }
+
+                let response = await fetch("/upload", { method: "POST", body: formData });
+                let data = await response.json();
+
+                if (data.mp3_files) {
+                    progressBar.style.width = "100%";
+                    statusBox.textContent = "Conversion Complete!";
+                    playButton.style.display = "block";
+                    downloadButton.style.display = "block";
+                    audio = new Audio(`/output/${data.mp3_files[0]}`);
+                } else {
+                    statusBox.textContent = "Error: " + data.error;
+                    progressBar.style.width = "0%";
+                }
+            }
+        });
+
+        playButton.addEventListener("click", function() {
+            if (!isPlaying && audio) {
+                audio.play();
+                isPlaying = true;
+                playButton.innerHTML = '<i class="fas fa-pause"></i> Pause Audio';
+
+                audio.onended = function() {
+                    isPlaying = false;
+                    playButton.innerHTML = '<i class="fas fa-play"></i> Play Audio';
+                };
+            } else if (isPlaying) {
+                audio.pause();
                 isPlaying = false;
                 playButton.innerHTML = '<i class="fas fa-play"></i> Play Audio';
-            };
-        } else if (isPlaying) {
-            audio.pause();
-            isPlaying = false;
-            playButton.innerHTML = '<i class="fas fa-play"></i> Play Audio';
-        }
-    });
+            }
+        });
 
-    downloadButton.addEventListener("click", function() {
-        if (audio) {
-            window.location.href = `/output/${audio.src.split("/").pop()}`;
-        }
-    });
-</script>
+        downloadButton.addEventListener("click", function() {
+            if (audio) {
+                window.location.href = `/output/${audio.src.split("/").pop()}`;
+            }
+        });
+    </script>
 
 </body>
 </html>
