@@ -3,163 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text2Speech Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>Text-to-Speech Converter</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .upload-container {
-            border: 2px dashed rgba(255,255,255,0.3);
-            transition: all 0.3s ease;
-        }
-        .upload-container:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-        .glow {
-            box-shadow: 0 0 20px rgba(118,75,162,0.3);
-        }
-        .text-section {
-            max-height: 400px;
-            overflow-y: auto;
-        }
+        body { font-family: Arial, sans-serif; text-align: center; margin: 40px; }
+        #progress-container { display: none; margin-top: 10px; }
+        #progress-bar { width: 0%; height: 20px; background: green; text-align: center; color: white; }
+        #output-container { display: none; margin-top: 20px; }
+        .btn { padding: 10px 15px; margin: 5px; border: none; cursor: pointer; }
+        .btn-play { background: blue; color: white; }
+        .btn-download { background: green; color: white; }
+        .btn-copy { background: orange; color: white; }
     </style>
 </head>
-<body class="gradient-bg min-h-screen">
-    <div class="container mx-auto px-4 py-12">
-        <div class="max-w-4xl mx-auto text-center">
-            <h1 class="text-4xl font-bold text-white mb-4 animate-pulse">
-                <i class="fas fa-wave-square"></i> Text2Speech Pro
-            </h1>
-            
-            <!-- Upload Card -->
-            <div class="bg-white rounded-xl p-8 upload-container glow">
-                <div id="uploadBox" class="cursor-pointer">
-                    <div class="text-6xl text-purple-600 mb-4">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                    </div>
-                    <h2 class="text-2xl font-semibold text-gray-800 mb-2">
-                        Drag & Drop Files Here
-                    </h2>
-                    <p class="text-gray-500 mb-4">
-                        Supported formats: PDF, TXT, HTML
-                    </p>
-                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.html">
-                    <button onclick="document.getElementById('fileInput').click()" 
-                            class="bg-purple-600 text-white px-6 py-2 rounded-full hover:bg-purple-700 transition-all">
-                        Choose File
-                    </button>
-                </div>
-            </div>
+<body>
 
-            <!-- Extracted Text Section -->
-            <div id="extractedTextSection" class="mt-8 hidden">
-                <div class="bg-white rounded-xl p-6 glow">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-semibold">
-                            <i class="fas fa-file-alt mr-2"></i> Extracted Text
-                        </h3>
-                        <button onclick="copyText()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
-                            Copy Text <i class="fas fa-copy ml-2"></i>
-                        </button>
-                    </div>
-                    <div id="extractedContent" class="text-section bg-gray-50 p-4 rounded-lg text-left whitespace-pre-line"></div>
-                </div>
-            </div>
+    <h1>Text-to-Speech Converter</h1>
+    <input type="file" id="fileInput">
+    <button onclick="uploadFile()">Upload</button>
 
-            <!-- Results Section -->
-            <div id="results" class="mt-8 hidden">
-                <div class="bg-white rounded-xl p-6 glow">
-                    <h3 class="text-xl font-semibold mb-4">
-                        <i class="fas fa-music mr-2"></i> Generated Audio Files
-                    </h3>
-                    <div id="fileList" class="space-y-3"></div>
-                </div>
-            </div>
-        </div>
+    <div id="progress-container">
+        <p id="status-text">Uploading...</p>
+        <div id="progress-bar"></div>
+    </div>
+
+    <div id="output-container">
+        <h3>Extracted Text:</h3>
+        <textarea id="extracted-text" rows="6" cols="50"></textarea>
+        <button class="btn btn-copy" onclick="copyText()"><i class="fas fa-copy"></i> Copy</button>
+        <div id="audio-buttons"></div>
     </div>
 
     <script>
-        async function uploadFile(file) {
-            const formData = new FormData();
-            formData.append('file', file);
+        function uploadFile() {
+            let file = document.getElementById('fileInput').files[0];
+            let formData = new FormData();
+            formData.append("file", file);
+            document.getElementById("progress-container").style.display = "block";
 
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
+            fetch("/upload", { method: "POST", body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("extracted-text").value = data.extracted_text;
+                    let audioButtons = data.mp3_files.map(file => 
+                        `<a href="/download/${file}" class="btn btn-download"><i class="fas fa-download"></i> Download</a>
+                        <audio controls><source src="/download/${file}" type="audio/mp3"></audio>`
+                    ).join('');
+                    document.getElementById("audio-buttons").innerHTML = audioButtons;
+                    document.getElementById("output-container").style.display = "block";
                 });
-                
-                const data = await response.json();
-                if (data.error) throw new Error(data.error);
-
-                showExtractedText(data.extracted_text);
-                showResults(data.mp3_files);
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            }
-        }
-
-        function showExtractedText(text) {
-            const extractedSection = document.getElementById('extractedTextSection');
-            const contentDiv = document.getElementById('extractedContent');
-
-            // Split text into 500-character sections
-            const sections = text.match(/[\s\S]{1,500}/g) || [];
-            contentDiv.innerHTML = sections.map((section, index) => `
-                <div class="mb-4 p-3 border-b border-gray-200">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="font-semibold text-purple-600">Section ${index + 1}</span>
-                        <button onclick="playSection(${index})" class="text-purple-600 hover:text-purple-700">
-                            <i class="fas fa-play-circle"></i>
-                        </button>
-                    </div>
-                    <p class="text-gray-700">${section}</p>
-                </div>
-            `).join('');
-            
-            extractedSection.classList.remove('hidden');
-        }
-
-        function showResults(files) {
-            const fileList = files.map(file => `
-                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                    <span>${file}</span>
-                    <div class="space-x-3">
-                        <button onclick="playAudio('${file}')" class="text-purple-600 hover:text-purple-700">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        <a href="/download/${file}" 
-                           class="bg-purple-600 text-white px-4 py-1 rounded-lg hover:bg-purple-700 transition-all">
-                           Download <i class="fas fa-download ml-2"></i>
-                        </a>
-                    </div>
-                </div>
-            `).join('');
-
-            document.getElementById('fileList').innerHTML = fileList;
-            document.getElementById('results').classList.remove('hidden');
         }
 
         function copyText() {
-            const text = document.getElementById('extractedContent').innerText;
-            navigator.clipboard.writeText(text)
-                .then(() => alert('Text copied to clipboard!'))
-                .catch(() => alert('Failed to copy text'));
-        }
-
-        function playSection(index) {
-            const sections = document.querySelectorAll('#extractedContent div p');
-            const text = sections[index].innerText;
-            const utterance = new SpeechSynthesisUtterance(text);
-            speechSynthesis.speak(utterance);
-        }
-
-        function playAudio(filename) {
-            const audio = new Audio(`/download/${filename}`);
-            audio.play();
+            navigator.clipboard.writeText(document.getElementById("extracted-text").value);
+            alert("Text copied!");
         }
     </script>
 </body>
