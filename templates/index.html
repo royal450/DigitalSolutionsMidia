@@ -19,101 +19,97 @@
             padding: 20px;
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.2);
         }
-        .progress-bar {
-            width: 0%;
-            height: 5px;
-            background: #ff9800;
-            transition: width 0.5s;
-        }
-        .hidden {
-            display: none;
-        }
-        .btn-primary {
-            background: linear-gradient(45deg, #ff416c, #ff4b2b);
-            border: none;
-        }
-        .extracted-text {
-            background: rgba(0, 0, 0, 0.8);
-            color: #ddd;
-            padding: 10px;
-            border-radius: 10px;
-            max-height: 250px;
-            overflow-y: auto;
-            font-family: monospace;
-            text-align: left;
-            white-space: pre-wrap;
+        .highlight {
+            background: yellow;
+            color: black;
+            padding: 2px;
+            border-radius: 5px;
+            transition: background 0.2s ease-in-out;
         }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h2>📂 PDF to MP3 Converter</h2>
-        <input type="file" id="fileUpload" class="form-control mt-3">
-        <button id="uploadBtn" class="btn btn-primary mt-3">Upload & Convert</button>
-        <div class="progress mt-3 hidden">
-            <div id="progressBar" class="progress-bar"></div>
-        </div>
-        <p id="statusText" class="mt-3"></p>
 
-        <!-- Play & Download Buttons -->
-        <button id="playBtn" class="btn btn-warning mt-3 hidden">▶ Play</button>
-        <a id="downloadBtn" class="btn btn-success mt-3 hidden">⬇ Download</a>
+<div class="container text-center">
+    <h2 class="mb-3">PDF to MP3 Converter</h2>
 
-        <!-- Extracted Text Section -->
-        <h3 class="mt-4">Extracted Text</h3>
-        <div id="extractedText" class="extracted-text"></div>
-    </div>
+    <input type="file" id="pdfFile" class="form-control mb-3">
+    <button id="uploadBtn" class="btn btn-primary">Upload & Convert</button>
 
-    <script>
-        let audio = null;  
-        let mp3File = "";   
+    <h4 class="mt-4">Extracted Text</h4>
+    <p id="textContainer"></p>
 
-        $("#uploadBtn").click(function() {
-            let file = $("#fileUpload")[0].files[0];
-            if (!file) {
-                alert('Please select a PDF file!');
-                return;
+    <audio id="audioPlayer" controls class="mt-3" style="display: none;">
+        <source id="audioSource" type="audio/mpeg">
+    </audio>
+
+    <button id="playBtn" class="btn btn-success mt-3">Play</button>
+</div>
+
+<script>
+$(document).ready(function () {
+    let words = [];
+    let audio = document.getElementById("audioPlayer");
+    let playBtn = document.getElementById("playBtn");
+
+    $("#uploadBtn").click(function () {
+        let file = $("#pdfFile")[0].files[0];
+        if (!file) {
+            alert("Please select a file!");
+            return;
+        }
+
+        let formData = new FormData();
+        formData.append("file", file);
+
+        $.ajax({
+            url: "/upload",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                words = response.extracted_text.split(" "); // Split text into words
+                $("#textContainer").html(words.map(w => `<span>${w} </span>`).join(""));
+
+                $("#audioSource").attr("src", response.mp3_files[0]); 
+                audio.load();
+                $("#audioPlayer").show();
+                playBtn.disabled = false;
+            },
+            error: function () {
+                alert("Error processing file.");
             }
-
-            let formData = new FormData();
-            formData.append("file", file);
-            $(".progress").removeClass("hidden");
-            $("#statusText").text("Uploading...");
-
-            $.ajax({
-                url: "/upload",
-                type: "POST",
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
-                    $("#progressBar").css("width", "100%");
-                    $("#statusText").text("✅ Conversion Complete!");
-                    mp3File = response.mp3_files[0];
-                    $("#playBtn").removeClass("hidden");
-                    $("#downloadBtn").attr("href", "/download/" + mp3File).removeClass("hidden");
-                    $("#extractedText").text(response.extracted_text);
-                }
-            });
         });
+    });
 
-        $("#playBtn").click(function() {
-            if (!audio) {
-                audio = new Audio("/download/" + mp3File);
-                audio.play();
-                $("#playBtn").text("⏹ Stop");
-                audio.onended = function() {
-                    $("#playBtn").text("▶ Play");
-                    audio = null;
-                };
+    playBtn.addEventListener("click", function () {
+        if (audio.paused) {
+            audio.play();
+            playBtn.innerText = "Stop";
+            highlightText();
+        } else {
+            audio.pause();
+            playBtn.innerText = "Play";
+        }
+    });
+
+    function highlightText() {
+        let spans = document.querySelectorAll("#textContainer span");
+        let index = 0;
+        let interval = setInterval(() => {
+            if (index > 0) spans[index - 1].classList.remove("highlight");
+            if (index < spans.length) {
+                spans[index].classList.add("highlight");
+                index++;
             } else {
-                audio.pause();
-                audio = null;
-                $("#playBtn").text("▶ Play");
+                clearInterval(interval);
             }
-        });
-    </script>
+        }, 500); // Adjust timing as per speech speed
+    }
+});
+</script>
+
 </body>
 </html>
