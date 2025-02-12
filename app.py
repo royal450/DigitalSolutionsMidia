@@ -1,9 +1,9 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, send_from_directory, jsonify
 import os
-import time
 from gtts import gTTS
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
+import time
 
 app = Flask(__name__)
 
@@ -17,39 +17,14 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-def update_status(status, progress):
+ALLOWED_EXTENSIONS = {'pdf', 'html', 'txt', 'text'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def update_status(status, progress, extracted_text=""):
     with open(STATUS_FILE, "w") as f:
-        f.write(f"{status}|{progress}")
-
-def extract_text_from_pdf(pdf_path):
-    text = []
-    reader = PdfReader(pdf_path)
-    for page in reader.pages:
-        text.append(page.extract_text() or "")
-    return text
-
-def extract_text_from_txt(txt_path):
-    with open(txt_path, 'r', encoding='utf-8') as file:
-        return file.read().splitlines()
-
-def extract_text_from_html(html_path):
-    with open(html_path, 'r', encoding='utf-8') as file:
-        soup = BeautifulSoup(file, 'html.parser')
-        text = soup.get_text(separator="\n")
-        return text.splitlines()
-
-def convert_text_to_speech(text_list):
-    mp3_files = []
-    for i, text in enumerate(text_list):
-        if text.strip():
-            tts = gTTS(text, lang="en")
-            mp3_filename = f"output_{i}.mp3"
-            mp3_path = os.path.join(app.config['OUTPUT_FOLDER'], mp3_filename)
-            tts.save(mp3_path)
-            mp3_files.append(mp3_filename)
-            update_status(f"Converting page {i+1} to speech...", int((i+1)/len(text_list) * 100))
-            time.sleep(1)
-    return mp3_files
+        f.write(f"{status}|{progress}|{extracted_text}")
 
 @app.route('/')
 def index():
@@ -57,51 +32,84 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    if 'file' not in request.files or request.files['file'].filename == '':
+    if 'file' not in request.files:
         return jsonify({"error": "No file selected!"})
 
     file = request.files['file']
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    file.save(file_path)
-    
-    update_status(f"File uploaded: {file.filename}", 5)
-    time.sleep(1)
+    if file.filename == '':
+        return jsonify({"error": "No file selected!"})
 
-    if file.filename.endswith('.pdf'):
-        update_status("Extracting text from PDF...", 15)
-        pages_text = extract_text_from_pdf(file_path)
-        extracted_text = "\n\n".join(pages_text)
-    elif file.filename.endswith('.txt'):
-        update_status("Extracting text from TXT...", 15)
-        extracted_text = "\n\n".join(extract_text_from_txt(file_path))
-    elif file.filename.endswith('.html'):
-        update_status("Extracting text from HTML...", 15)
-        extracted_text = "\n\n".join(extract_text_from_html(file_path))
-    else:
-        return jsonify({"error": "Unsupported file format!"})
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file format! Only PDF, HTML, and TXT are allowed."})
 
-    update_status("Converting text to speech...", 50)
-    mp3_files = convert_text_to_speech(extracted_text.splitlines())
+    try:
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(file_path)
+        update_status(f"📂 File uploaded: {file.filename}", 5)
+        time.sleep(1)
 
-    update_status("✅ Conversion complete!", 100)
+        update_status("🔍 Extracting text...", 15)
+        extracted_text = extract_text(file_path, file.filename)
 
-    return jsonify({
-        "mp3_files": mp3_files,
-        "extracted_text": extracted_text
-    })
+        update_status("🎤 Converting text to speech...", 50, extracted_text)
 
-@app.route('/download/<filename>')
-def download(filename):
-    return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+        mp3_files = convert_text_to_speech(extracted_text)
+
+        update_status("✅ Conversion complete!", 100, extracted_text)
+
+        return jsonify({"mp3_files": mp3_files, "extracted_text": extracted_text})
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route('/status')
 def get_status():
-    try:
+    if os.path.exists(STATUS_FILE):
         with open(STATUS_FILE, "r") as f:
-            status, progress = f.read().split("|")
-        return jsonify({"status": status, "progress": int(progress)})
-    except:
-        return jsonify({"status": "Initializing...", "progress": 0})
+            data = f.read().split("|")
+            status = data[0]
+            progress = int(data[1])
+            extracted_text = data[2] if len(data) > 2 else ""
+            return jsonify({"status": status, "progress": progress, "extracted_text": extracted_text})
+    return jsonify({"status": "Idle", "progress": 0, "extracted_text": ""})
+
+def extract_text(file_path, filename):
+    extracted_text = ""
+
+    if filename.endswith('.pdf'):
+        reader = PdfReader(file_path)
+        extracted_text = "\n".join([page.extract_text() or '' for page in reader.pages])
+
+    elif filename.endswith('.html'):
+        with open(file_path, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "html.parser")
+            extracted_text = soup.get_text()
+
+    elif filename.endswith(('.txt', '.text')):
+        with open(file_path, "r", encoding="utf-8") as f:
+            extracted_text = f.read()
+
+    extracted_text = extracted_text.strip()
+    return extracted_text
+
+def convert_text_to_speech(text):
+    mp3_files = []
+    
+    if text:
+        try:
+            tts = gTTS(text=text, lang='en')
+            filename = "output.mp3"
+            output_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+            tts.save(output_path)
+            mp3_files.append(filename)
+        except Exception as e:
+            print(f"Error during TTS conversion: {str(e)}")
+
+    return mp3_files
+
+@app.route('/output/<path:filename>')
+def serve_audio(filename):
+    return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
 
 if __name__ == '__main__':
     app.run(debug=True)
