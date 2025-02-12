@@ -53,7 +53,8 @@ def upload():
 
         update_status("🎤 Converting text to speech...", 50, extracted_text)
 
-        mp3_files = convert_text_to_speech(extracted_text)
+        # Convert text to Hindi speech
+        mp3_files = convert_text_to_speech(extracted_text, lang='hi')  # Hindi language
 
         update_status("✅ Conversion complete!", 100, extracted_text)
 
@@ -92,12 +93,12 @@ def extract_text(file_path, filename):
     extracted_text = extracted_text.strip()
     return extracted_text
 
-def convert_text_to_speech(text):
+def convert_text_to_speech(text, lang='hi'):
     mp3_files = []
     
     if text:
         try:
-            tts = gTTS(text=text, lang='en')
+            tts = gTTS(text=text, lang=lang)  # Set language to Hindi
             filename = "output.mp3"
             output_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
             tts.save(output_path)
@@ -112,4 +113,4 @@ def serve_audio(filename):
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)  # Fixed indentation
+    app.run(debug=True, port=5000)
