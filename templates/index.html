@@ -3,41 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Royal Developer | PDF to MP3 Pro</title>
+    <title>PDF to MP3 Pro</title>
     
     <!-- Bootstrap & Font Awesome -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --secondary-gradient: linear-gradient(45deg, #00c6ff 0%, #0072ff 100%);
+            --primary-gradient: linear-gradient(135deg, #1e3c72, #2a5298);
+            --secondary-gradient: linear-gradient(45deg, #ff416c, #ff4b2b);
+            --text-light: #fff;
+            --text-dark: #222;
         }
 
         body {
             background: var(--primary-gradient);
-            color: #ffffff;
-            font-family: 'Montserrat', sans-serif;
+            color: var(--text-light);
+            font-family: 'Poppins', sans-serif;
             min-height: 100vh;
+            transition: background 0.3s ease;
         }
 
         .glass-card {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(12px);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
             padding: 2rem;
             margin-top: 3rem;
             transition: transform 0.3s ease;
+            text-align: center;
         }
 
         .glass-card:hover {
             transform: translateY(-5px);
+        }
+
+        .developer-badge {
+            background: var(--secondary-gradient);
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 1rem;
+            display: inline-block;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .upload-label {
@@ -46,35 +58,32 @@
             border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s ease;
+            font-weight: 600;
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            font-weight: 600;
         }
 
         .upload-label:hover {
             transform: scale(1.05);
-            box-shadow: 0 5px 15px rgba(0, 198, 255, 0.4);
         }
 
         .progress-container {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.2);
             height: 10px;
             border-radius: 10px;
             overflow: hidden;
             margin: 1.5rem 0;
-            display: none;
         }
 
         .progress-bar {
             background: var(--secondary-gradient);
             height: 100%;
             width: 0%;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: width 0.4s ease-in-out;
         }
 
         .status-text {
-            text-align: center;
             font-size: 1rem;
             opacity: 0.9;
             margin-top: 1rem;
@@ -84,6 +93,7 @@
             display: none;
             gap: 1rem;
             margin-top: 2rem;
+            justify-content: center;
         }
 
         .action-btn {
@@ -93,7 +103,6 @@
             border-radius: 50px;
             color: white;
             font-weight: 600;
-            transition: all 0.3s ease;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -101,104 +110,110 @@
 
         .action-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 198, 255, 0.4);
+        }
+
+        .mode-toggle {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            background: var(--secondary-gradient);
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .mode-toggle:hover {
+            transform: rotate(180deg);
+        }
+
+        .dark-mode {
+            --primary-gradient: linear-gradient(135deg, #000000, #434343);
+            --text-light: #ddd;
+            --text-dark: #fff;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="glass-card text-center">
-        <h1 class="mb-4 fw-bold">PDF to MP3 Pro</h1>
+    <div class="mode-toggle" onclick="toggleDarkMode()">
+        <i class="fas fa-moon"></i>
+    </div>
 
-        <label for="fileUpload" class="upload-label">
-            <i class="fas fa-cloud-upload-alt"></i> Select PDF File
+    <div class="glass-card">
+        <div class="developer-badge">🏆 Royal Developer Exclusive</div>
+        
+        <h1 class="text-center fw-bold mt-3">PDF to MP3 Pro</h1>
+        
+        <label for="fileUpload" class="upload-label mt-3">
+            <i class="fas fa-cloud-upload-alt"></i> Upload PDF
         </label>
         <input type="file" id="fileUpload" accept=".pdf" hidden>
 
-        <div class="progress-container mt-3">
+        <div class="progress-container">
             <div class="progress-bar"></div>
         </div>
 
-        <div class="status-text">Ready for Conversion</div>
+        <div class="status-text">Waiting for File...</div>
 
         <div class="action-buttons">
             <button class="action-btn play-btn">
                 <i class="fas fa-play"></i> Play Audio
             </button>
-            <a href="#" class="action-btn download-btn" download>
+            <button class="action-btn download-btn">
                 <i class="fas fa-download"></i> Download MP3
-            </a>
+            </button>
         </div>
+    </div>
+
+    <div class="text-center mt-4 opacity-75">
+        Crafted 😎 by <strong>Royal Developer</strong>
     </div>
 </div>
 
 <script>
     const fileInput = document.getElementById("fileUpload");
     const progressBar = document.querySelector(".progress-bar");
-    const progressContainer = document.querySelector(".progress-container");
     const statusText = document.querySelector(".status-text");
     const actionButtons = document.querySelector(".action-buttons");
-    const playBtn = document.querySelector(".play-btn");
-    const downloadBtn = document.querySelector(".download-btn");
+    const playButton = document.querySelector(".play-btn");
+    const downloadButton = document.querySelector(".download-btn");
 
-    fileInput.addEventListener("change", function() {
+    fileInput.addEventListener("change", async function() {
         if (fileInput.files.length > 0) {
-            uploadFile(fileInput.files[0]);
+            let formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            progressBar.style.width = "10%";
+            statusText.textContent = "Uploading...";
+
+            let response = await fetch("/upload", { method: "POST", body: formData });
+            let data = await response.json();
+
+            if (data.mp3_files) {
+                progressBar.style.width = "100%";
+                statusText.textContent = "Conversion Complete!";
+                actionButtons.style.display = "flex";
+
+                playButton.addEventListener("click", function() {
+                    let audio = new Audio(`/output/${data.mp3_files[0]}`);
+                    audio.play();
+                });
+
+                downloadButton.addEventListener("click", function() {
+                    window.location.href = `/output/${data.mp3_files[0]}`;
+                });
+            } else {
+                statusText.textContent = "Error: " + data.error;
+                progressBar.style.width = "0%";
+            }
         }
     });
 
-    async function uploadFile(file) {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        progressContainer.style.display = "block";
-        progressBar.style.width = "0%";
-        statusText.textContent = "Uploading file...";
-
-        try {
-            let response = await fetch("/upload", {
-                method: "POST",
-                body: formData,
-            });
-
-            let result = await response.json();
-
-            if (result.error) {
-                statusText.textContent = "❌ " + result.error;
-                return;
-            }
-
-            checkConversionStatus(result.mp3_files);
-        } catch (error) {
-            statusText.textContent = "❌ Upload failed!";
-        }
-    }
-
-    function checkConversionStatus(mp3Files) {
-        let interval = setInterval(async () => {
-            let response = await fetch("/status");
-            let statusData = await response.json();
-
-            progressBar.style.width = statusData.progress + "%";
-            statusText.textContent = statusData.status;
-
-            if (statusData.progress >= 100) {
-                clearInterval(interval);
-                showDownloadOptions(mp3Files);
-            }
-        }, 1000);
-    }
-
-    function showDownloadOptions(mp3Files) {
-        actionButtons.style.display = "flex";
-        if (mp3Files.length > 0) {
-            let mp3Url = "/output/" + mp3Files[0];
-            playBtn.addEventListener("click", () => {
-                new Audio(mp3Url).play();
-            });
-            downloadBtn.href = mp3Url;
-        }
+    function toggleDarkMode() {
+        document.body.classList.toggle("dark-mode");
     }
 </script>
 
