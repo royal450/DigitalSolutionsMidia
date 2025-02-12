@@ -7,20 +7,18 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             background: #121212;
             color: white;
             font-family: 'Poppins', sans-serif;
-            text-align: center;
         }
         .container {
-            max-width: 500px;
+            max-width: 600px;
             margin: auto;
             padding: 20px;
             border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
             box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.2);
         }
         .progress-bar {
@@ -36,20 +34,21 @@
             background: linear-gradient(45deg, #ff416c, #ff4b2b);
             border: none;
         }
-        .btn-primary:hover {
-            background: linear-gradient(45deg, #ff4b2b, #ff416c);
-        }
-        .glass {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        .extracted-text {
+            background: rgba(0, 0, 0, 0.8);
+            color: #ddd;
+            padding: 10px;
+            border-radius: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: monospace;
+            text-align: left;
+            white-space: pre-wrap;
         }
     </style>
 </head>
 <body>
-    <div class="container glass mt-5">
+    <div class="container mt-5">
         <h2>📂 PDF to MP3 Converter</h2>
         <input type="file" id="fileUpload" class="form-control mt-3">
         <button id="uploadBtn" class="btn btn-primary mt-3">Upload & Convert</button>
@@ -64,7 +63,7 @@
 
         <!-- Extracted Text Section -->
         <h3 class="mt-4">Extracted Text</h3>
-        <pre id="extractedText" class="bg-dark p-3 rounded"></pre>
+        <div id="extractedText" class="extracted-text"></div>
     </div>
 
     <script>
@@ -74,7 +73,7 @@
         $("#uploadBtn").click(function() {
             let file = $("#fileUpload")[0].files[0];
             if (!file) {
-                M.toast({html: 'Please select a PDF file!', classes: 'red darken-4'});
+                alert('Please select a PDF file!');
                 return;
             }
 
@@ -94,7 +93,7 @@
                     $("#statusText").text("✅ Conversion Complete!");
                     mp3File = response.mp3_files[0];
                     $("#playBtn").removeClass("hidden");
-                    $("#downloadBtn").attr("href", mp3File).removeClass("hidden");
+                    $("#downloadBtn").attr("href", "/download/" + mp3File).removeClass("hidden");
                     $("#extractedText").text(response.extracted_text);
                 }
             });
@@ -102,7 +101,7 @@
 
         $("#playBtn").click(function() {
             if (!audio) {
-                audio = new Audio(mp3File);
+                audio = new Audio("/download/" + mp3File);
                 audio.play();
                 $("#playBtn").text("⏹ Stop");
                 audio.onended = function() {
@@ -117,4 +116,4 @@
         });
     </script>
 </body>
-                </html>
+</html>
