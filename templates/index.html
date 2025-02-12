@@ -68,8 +68,8 @@
     </div>
 
     <script>
-        let audio = null;  // For controlling play/stop
-        let mp3File = "";   // Store the MP3 file URL
+        let audio = null;  
+        let mp3File = "";   
 
         $("#uploadBtn").click(function() {
             let file = $("#fileUpload")[0].files[0];
@@ -82,12 +82,6 @@
             formData.append("file", file);
             $(".progress").removeClass("hidden");
             $("#statusText").text("Uploading...");
-            let progress = 0;
-            let interval = setInterval(() => {
-                progress += 10;
-                if (progress > 90) clearInterval(interval);
-                $("#progressBar").css("width", progress + "%");
-            }, 500);
 
             $.ajax({
                 url: "/upload",
@@ -96,25 +90,16 @@
                 processData: false,
                 contentType: false,
                 success: function(response) {
-                    clearInterval(interval);
                     $("#progressBar").css("width", "100%");
                     $("#statusText").text("✅ Conversion Complete!");
-
-                    // Set MP3 File & Show Buttons
                     mp3File = response.mp3_files[0];
                     $("#playBtn").removeClass("hidden");
                     $("#downloadBtn").attr("href", mp3File).removeClass("hidden");
-
-                    // Show Extracted Text
                     $("#extractedText").text(response.extracted_text);
-                },
-                error: function(err) {
-                    M.toast({html: 'Error: ' + err.responseText, classes: 'red darken-4'});
                 }
             });
         });
 
-        // Play/Stop Button
         $("#playBtn").click(function() {
             if (!audio) {
                 audio = new Audio(mp3File);
@@ -132,4 +117,4 @@
         });
     </script>
 </body>
-</html>
+                </html>
