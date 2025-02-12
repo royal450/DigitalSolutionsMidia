@@ -20,15 +20,25 @@ def update_status(status, progress):
     with open(STATUS_FILE, "w") as f:
         f.write(f"{status}|{progress}")
 
-def clear_old_files():
-    # Delete previous PDF files
-    for filename in os.listdir(app.config['UPLOAD_FOLDER']):
-        if filename.endswith('.pdf'):
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Error deleting file {filename}: {e}")
+def extract_text_from_pdf(pdf_path):
+    text = []
+    reader = PdfReader(pdf_path)
+    for page in reader.pages:
+        text.append(page.extract_text() or "")
+    return text
+
+def convert_text_to_speech(text_list):
+    mp3_files = []
+    for i, text in enumerate(text_list):
+        if text.strip():
+            tts = gTTS(text, lang="en")
+            mp3_filename = f"output_{i}.mp3"
+            mp3_path = os.path.join(app.config['OUTPUT_FOLDER'], mp3_filename)
+            tts.save(mp3_path)
+            mp3_files.append(mp3_path)
+            update_status(f"🔊 Converting page {i+1} to speech...", int((i+1)/len(text_list) * 100))
+            time.sleep(1)
+    return mp3_files
 
 @app.route('/')
 def index():
@@ -36,53 +46,44 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    if 'file' not in request.files:
+    if 'file' not in request.files or request.files['file'].filename == '':
         return jsonify({"error": "No file selected!"})
 
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No file selected!"})
+    if not file.filename.endswith('.pdf'):
+        return jsonify({"error": "Invalid file format!"})
 
-    if file and file.filename.endswith('.pdf'):
-        try:
-            # Clear previous files
-            clear_old_files()
-            
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(file_path)
-            update_status(f"📂 File uploaded: {file.filename}", 5)
-            time.sleep(1)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(file_path)
+    update_status(f"📂 File uploaded: {file.filename}", 5)
+    time.sleep(1)
 
-            update_status("🔍 Extracting text from PDF...", 15)
-            pages_text = extract_text_from_pdf(file_path)
-            extracted_text = "\n".join(pages_text)
+    update_status("🔍 Extracting text from PDF...", 15)
+    pages_text = extract_text_from_pdf(file_path)
+    extracted_text = "\n".join(pages_text)
 
-            update_status("🎤 Converting text to speech...", 50)
-            mp3_files = convert_text_to_speech(pages_text)
+    update_status("🎤 Converting text to speech...", 50)
+    mp3_files = convert_text_to_speech(pages_text)
 
-            update_status("✅ Conversion complete!", 100)
+    update_status("✅ Conversion complete!", 100)
 
-            return jsonify({
-                "mp3_files": mp3_files,
-                "extracted_text": extracted_text
-            })
-
-        except Exception as e:
-            return jsonify({"error": str(e)})
-
-    return jsonify({"error": "Invalid file format!"})
-
-@app.route('/send_text', methods=['POST'])
-def receive_text():
-    data = request.get_json()
-    text = data.get('text', '')
-    # Add your custom processing logic here
     return jsonify({
-        "received_text": text,
-        "message": "Text received successfully!"
+        "mp3_files": mp3_files,
+        "extracted_text": extracted_text
     })
 
-# ... (Keep other existing functions same as original code)
+@app.route('/download/<filename>')
+def download(filename):
+    return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+
+@app.route('/status')
+def get_status():
+    try:
+        with open(STATUS_FILE, "r") as f:
+            status, progress = f.read().split("|")
+        return jsonify({"status": status, "progress": int(progress)})
+    except:
+        return jsonify({"status": "Initializing...", "progress": 0})
 
 if __name__ == '__main__':
     app.run(debug=True)
