@@ -20,11 +20,17 @@ def update_status(status, progress):
     with open(STATUS_FILE, "w") as f:
         f.write(f"{status}|{progress}")
 
+# ✅ पुरानी फाइल्स डिलीट करने का फ़ंक्शन
+def delete_old_files():
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
+        for file in os.listdir(folder):
+            file_path = os.path.join(folder, file)
+            os.remove(file_path)
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# ✅ अब POST Request से PDF File Upload होगी
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'file' not in request.files:
@@ -36,20 +42,26 @@ def upload():
 
     if file and file.filename.endswith('.pdf'):
         try:
+            # ✅ पहले पुरानी फाइल्स हटा दो
+            delete_old_files()
+
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(file_path)
             update_status(f"📂 File uploaded: {file.filename}", 5)
             time.sleep(1)
 
             update_status("🔍 Extracting text from PDF...", 15)
-            pages_text = extract_text_from_pdf(file_path)
+            pages_text = extract_text_from_pdf(file_path)  # ✅ Text Extraction
 
             update_status("🎤 Converting text to speech...", 50)
             mp3_files = convert_text_to_speech(pages_text)
 
             update_status("✅ Conversion complete!", 100)
 
-            return jsonify({"mp3_files": mp3_files})
+            return jsonify({
+                "text": pages_text,  # ✅ Structured JSON Text Response
+                "mp3_files": mp3_files
+            })
 
         except Exception as e:
             return jsonify({"error": str(e)})
@@ -64,6 +76,7 @@ def get_status():
             return jsonify({"status": status, "progress": int(progress)})
     return jsonify({"status": "Idle", "progress": 0})
 
+# ✅ अब JSON में Page Numbers के साथ Extracted Text मिलेगा
 def extract_text_from_pdf(pdf_path):
     pages_text = []
     reader = PdfReader(pdf_path)
@@ -71,7 +84,8 @@ def extract_text_from_pdf(pdf_path):
 
     for page_num, page in enumerate(reader.pages, start=1):
         page_text = page.extract_text() or ''
-        pages_text.append(page_text.strip())
+        page_data = {"page": page_num, "text": page_text.strip()}
+        pages_text.append(page_data)
 
         progress = int((page_num / total_pages) * 100)
         update_status(f"📖 Extracting text from page {page_num}/{total_pages}", progress)
@@ -83,7 +97,8 @@ def convert_text_to_speech(pages_text):
     mp3_files = []
     total_pages = len(pages_text)
 
-    for page_num, page_text in enumerate(pages_text, start=1):
+    for page_num, page_data in enumerate(pages_text, start=1):
+        page_text = page_data["text"]
         if not page_text:
             continue
         try:
@@ -108,7 +123,3 @@ def serve_audio(filename):
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-
-
