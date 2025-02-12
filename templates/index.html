@@ -12,9 +12,6 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 
-    <!-- Material Icons -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-
     <style>
         body {
             background-color: #1e1e2f;
@@ -121,52 +118,14 @@
             flex: 1;
         }
 
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 120px;
-            background-color: #555;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 5px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -60px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .material-icons-round {
-            font-family: 'Material Icons Round';
-            font-size: 24px;
-            vertical-align: middle;
-        }
-
-        .premium-feature {
-            background: rgba(255, 215, 0, 0.1);
-            border: 1px solid rgba(255, 215, 0, 0.3);
-            padding: 10px;
+        .extracted-text {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
             border-radius: 10px;
             margin-top: 20px;
-            color: #ffd700;
-            font-size: 14px;
-        }
-
-        .premium-feature i {
-            color: #ffd700;
-            margin-right: 8px;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -189,9 +148,10 @@
         <!-- Status Box -->
         <div class="status-box">Waiting for file...</div>
 
-        <!-- Premium Feature -->
-        <div class="premium-feature">
-            <i class="material-icons-round">star</i> Premium Feature: High-Quality Audio Conversion
+        <!-- Extracted Text -->
+        <div class="extracted-text" id="extractedText" style="display: none;">
+            <strong>Extracted Text:</strong>
+            <p id="textContent"></p>
         </div>
 
         <!-- Audio Controls -->
@@ -213,17 +173,17 @@
         const statusBox = document.querySelector(".status-box");
         const playButton = document.querySelector(".play-btn");
         const downloadButton = document.querySelector(".download-btn");
+        const extractedTextDiv = document.getElementById("extractedText");
+        const textContent = document.getElementById("textContent");
         let audio = null;
         let isPlaying = false;
 
         const steps = [
             "Uploading PDF",
+            "Extracting Text",
             "Creating Audio",
             "Downloading Audio",
-            "Initializing Slice Process",
-            "Complete",
-            "Speak Now",
-            "Speaking"
+            "Complete"
         ];
 
         fileInput.addEventListener("change", async function() {
@@ -242,14 +202,17 @@
                     statusBox.textContent = `${steps[stepIndex]}... ${i}%`;
                 }
 
+                // Send the file to the backend
                 let response = await fetch("/upload", { method: "POST", body: formData });
                 let data = await response.json();
 
-                if (data.mp3_files) {
+                if (data.text && data.mp3_files) {
                     progressBar.style.width = "100%";
                     statusBox.textContent = "Conversion Complete!";
                     playButton.style.display = "block";
                     downloadButton.style.display = "block";
+                    extractedTextDiv.style.display = "block";
+                    textContent.textContent = data.text;
                     audio = new Audio(`/output/${data.mp3_files[0]}`);
                 } else {
                     statusBox.textContent = "Error: " + data.error;
@@ -283,4 +246,4 @@
     </script>
 
 </body>
-</html>
+        </html>
