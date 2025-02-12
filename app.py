@@ -35,7 +35,7 @@ def convert_text_to_speech(text_list):
             mp3_filename = f"output_{i}.mp3"
             mp3_path = os.path.join(app.config['OUTPUT_FOLDER'], mp3_filename)
             tts.save(mp3_path)
-            mp3_files.append(mp3_path)
+            mp3_files.append(mp3_filename)
             update_status(f"🔊 Converting page {i+1} to speech...", int((i+1)/len(text_list) * 100))
             time.sleep(1)
     return mp3_files
@@ -60,7 +60,7 @@ def upload():
 
     update_status("🔍 Extracting text from PDF...", 15)
     pages_text = extract_text_from_pdf(file_path)
-    extracted_text = "\n".join(pages_text)
+    extracted_text = "\n\n".join(pages_text)
 
     update_status("🎤 Converting text to speech...", 50)
     mp3_files = convert_text_to_speech(pages_text)
