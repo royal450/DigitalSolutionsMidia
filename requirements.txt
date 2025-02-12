@@ -1,8 +1,4 @@
 Flask
-flask-cors
-flask-socketio
-eventlet
-pydub
 gtts
 PyPDF2
 gunicorn
