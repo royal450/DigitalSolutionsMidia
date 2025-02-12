@@ -1,72 +1,64 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template
-from flask_cors import CORS
+from flask import Flask, render_template, request, jsonify, send_file
+from flask_socketio import SocketIO
 import os
+import time
+import threading
 from gtts import gTTS
 from PyPDF2 import PdfReader
+import eventlet
 
-app = Flask(__name__, template_folder="templates")
-CORS(app)
+eventlet.monkey_patch()  # For WebSockets
+
+app = Flask(__name__)
+socketio = SocketIO(app, async_mode="eventlet", cors_allowed_origins="*")
 
 UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "output"
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
-
+MP3_FOLDER = "mp3_files"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+os.makedirs(MP3_FOLDER, exist_ok=True)
 
 @app.route("/")
-def home():
-    return render_template("index.html")  # UI Page
+def index():
+    return render_template("index.html")
 
 @app.route("/upload", methods=["POST"])
-def upload():
+def upload_file():
     if "file" not in request.files:
-        return jsonify({"error": "No file selected!"})
-
+        return jsonify({"error": "No file uploaded"}), 400
+    
     file = request.files["file"]
     if file.filename == "":
-        return jsonify({"error": "No file selected!"})
+        return jsonify({"error": "No file selected"}), 400
+    
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(file_path)
+    
+    thread = threading.Thread(target=convert_to_mp3, args=(file.filename,))
+    thread.start()
+    
+    return jsonify({"message": "File uploaded successfully!", "filename": file.filename})
 
-    if file and file.filename.endswith(".pdf"):
-        file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-        file.save(file_path)
+def convert_to_mp3(filename):
+    pdf_path = os.path.join(UPLOAD_FOLDER, filename)
+    output_mp3 = os.path.join(MP3_FOLDER, filename.replace(".pdf", ".mp3"))
+    
+    pdf_reader = PdfReader(pdf_path)
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text() + "\n"
+    
+    tts = gTTS(text, lang="en")
+    tts.save(output_mp3)
 
-        # PDF से टेक्स्ट निकालो
-        pages_text = extract_text_from_pdf(file_path)
+    for i in range(101):
+        socketio.emit("progress", {"progress": i})  # Real-time Progress
+        time.sleep(0.1)
 
-        # टेक्स्ट को MP3 में बदलो
-        mp3_files = convert_text_to_speech(pages_text)
+    socketio.emit("complete", {"mp3_url": f"/download/{filename.replace('.pdf', '.mp3')}"})
 
-        return jsonify({"mp3_files": mp3_files})
-
-    return jsonify({"error": "Invalid file format!"})
-
-def extract_text_from_pdf(pdf_path):
-    pages_text = []
-    with open(pdf_path, "rb") as file:
-        reader = PdfReader(file)
-        for page in reader.pages:
-            pages_text.append(page.extract_text().strip() if page.extract_text() else "")
-    return pages_text
-
-def convert_text_to_speech(pages_text):
-    mp3_files = []
-    for i, page_text in enumerate(pages_text, start=1):
-        if not page_text:
-            continue
-
-        tts = gTTS(text=page_text, lang="en")
-        filename = f"page_{i}.mp3"
-        output_path = os.path.join(app.config["OUTPUT_FOLDER"], filename)
-        tts.save(output_path)
-        mp3_files.append(filename)
-
-    return mp3_files
-
-@app.route("/output/<filename>")
-def serve_audio(filename):
-    return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
+@app.route("/download/<filename>")
+def download_file(filename):
+    return send_file(os.path.join(MP3_FOLDER, filename), as_attachment=True)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True)
