@@ -1,75 +1,104 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask_cors import CORS
+from flask_socketio import SocketIO
 import os
-import shutil
+import pdfkit
 import edge_tts
 import asyncio
-from PyPDF2 import PdfReader
-import html2text
+import PyPDF2
+from bs4 import BeautifulSoup
+import re
 
 app = Flask(__name__)
+CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "output"
+UPLOAD_FOLDER = 'static/uploads'
+OUTPUT_FOLDER = 'static/output'
+
+# Ensure upload & output folders exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 📌 Extract text from PDF, HTML, or TXT
-def extract_text(file_path, file_type):
+# Function to extract text from PDF
+def extract_text_from_pdf(file_path):
     text = ""
-    if file_type == "pdf":
-        with open(file_path, "rb") as f:
-            reader = PdfReader(f)
-            text = "\n".join(page.extract_text() for page in reader.pages if page.extract_text())
-    elif file_type == "html":
-        with open(file_path, "r", encoding="utf-8") as f:
-            text = html2text.html2text(f.read())
-    elif file_type in ["txt", "text"]:
-        with open(file_path, "r", encoding="utf-8") as f:
-            text = f.read()
+    with open(file_path, "rb") as pdf_file:
+        reader = PyPDF2.PdfReader(pdf_file)
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
     return text.strip()
 
-# 📌 Convert Text to Speech using Edge-TTS
-async def text_to_speech(text, lang, voice, output_path):
+# Function to extract text from HTML
+def extract_text_from_html(file_path):
+    with open(file_path, "r", encoding="utf-8") as html_file:
+        soup = BeautifulSoup(html_file, "html.parser")
+        text = soup.get_text(separator=" ").strip()
+    return text
+
+# Function to generate speech from text
+async def generate_speech(text, lang, gender, filename):
+    voice_map = {
+        "Male": "en-US-GuyNeural",
+        "Female": "en-US-JennyNeural"
+    }
+    voice = voice_map.get(gender, "en-US-JennyNeural")
+    
+    output_path = os.path.join(OUTPUT_FOLDER, filename)
     tts = edge_tts.Communicate(text, voice)
     await tts.save(output_path)
+    return output_path
 
-# 📌 Upload & Process File
+# File Upload Route
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded!"}), 400
-    
+        return jsonify({"error": "No file uploaded"}), 400
+
     file = request.files["file"]
     if file.filename == "":
-        return jsonify({"error": "No selected file!"}), 400
-    
-    file_ext = file.filename.rsplit(".", 1)[-1].lower()
-    if file_ext not in ["pdf", "html", "txt", "text"]:
-        return jsonify({"error": "Invalid file format!"}), 400
-    
+        return jsonify({"error": "No selected file"}), 400
+
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
 
-    # 📌 Extract Text
-    extracted_text = extract_text(file_path, file_ext)
+    # Extract text based on file type
+    if file.filename.endswith(".pdf"):
+        extracted_text = extract_text_from_pdf(file_path)
+    elif file.filename.endswith(".html"):
+        extracted_text = extract_text_from_html(file_path)
+    elif file.filename.endswith(".txt") or file.filename.endswith(".text"):
+        with open(file_path, "r", encoding="utf-8") as txt_file:
+            extracted_text = txt_file.read()
+    else:
+        return jsonify({"error": "Unsupported file type"}), 400
+
     if not extracted_text:
-        return jsonify({"error": "No text found in the file!"}), 400
+        return jsonify({"error": "No text found in file"}), 400
 
-    # 📌 Convert to Speech
-    output_mp3 = os.path.join(OUTPUT_FOLDER, f"{os.path.splitext(file.filename)[0]}.mp3")
-    asyncio.run(text_to_speech(extracted_text, "en-US", "en-US-JennyNeural", output_mp3))
+    # Get language and voice settings from frontend
+    lang = request.args.get("lang", "en-US")
+    gender = request.args.get("gender", "Female")
 
-    return jsonify({"extracted_text": extracted_text, "mp3_file": os.path.basename(output_mp3)})
+    # Generate speech from extracted text
+    mp3_filename = file.filename.rsplit(".", 1)[0] + ".mp3"
+    asyncio.run(generate_speech(extracted_text, lang, gender, mp3_filename))
 
-# 📌 Serve Audio File
+    return jsonify({
+        "extracted_text": extracted_text,
+        "mp3_file": mp3_filename
+    })
+
+# Serve audio files
 @app.route("/output/<filename>")
-def serve_audio(filename):
+def serve_output(filename):
     return send_from_directory(OUTPUT_FOLDER, filename)
 
-# 📌 Serve UI
+# Main Route
 @app.route("/")
-def home():
+def index():
     return render_template("index.html")
 
+# Start Flask App
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True)
