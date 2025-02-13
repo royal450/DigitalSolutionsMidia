@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import asyncio
 import edge_tts
 import socketio
 import tempfile
@@ -44,7 +45,9 @@ async def text_to_speech(text, output_file, sid):
     voice = "en-US-AriaNeural"
     tts = edge_tts.Communicate(text, voice)
     await tts.save(output_file)
-    
+
+    # 🎯 ऑडियो रेडी होने के बाद यूजर को भेजो
+    sio.emit("audio_ready", {"url": f"/output/output.mp3"}, room=sid)
     sio.emit("progress", {"status": "✅ TTS Conversion Complete!", "progress": 100}, room=sid)
 
 # 🔥 Upload & Process Route 🔥
@@ -75,14 +78,24 @@ def upload_file():
     sio.emit("progress", {"status": "🎤 Converting Text to Speech...", "progress": 50}, room=sid)
 
     output_mp3 = os.path.join(OUTPUT_FOLDER, "output.mp3")
-    sio.start_background_task(text_to_speech, extracted_text, output_mp3, sid)
+
+    # ✅ Background Task को Async तरीके से Call कर रहे हैं
+    asyncio.run(text_to_speech(extracted_text, output_mp3, sid))
 
     return jsonify({"extracted_text": extracted_text, "mp3_file": "output.mp3"})
 
 # 🔥 Serve Output MP3 🔥
 @app.route("/output/<filename>")
 def serve_audio(filename):
+    file_path = os.path.join(OUTPUT_FOLDER, filename)
+    if not os.path.exists(file_path):
+        return jsonify({"error": "File not found!"}), 404
     return send_from_directory(OUTPUT_FOLDER, filename)
+
+# 🔥 Home Route: Serve index.html 🔥
+@app.route("/")
+def index():
+    return render_template("index.html")
 
 # 🔥 Socket.IO Connection 🔥
 @sio.on("connect")
@@ -92,12 +105,6 @@ def handle_connect():
 @sio.on("disconnect")
 def handle_disconnect():
     print("Client Disconnected")
-
-# 🔥 Home Route: Serve index.html 🔥
-@app.route("/")
-def index():
-    return render_template("index.html")
-
 
 # 🔥 Run Server 🔥
 if __name__ == "__main__":
