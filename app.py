@@ -16,7 +16,6 @@ app.secret_key = os.urandom(24)
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Ensure directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 
@@ -60,7 +59,7 @@ def handle_upload():
 
         # Get user preferences
         language = request.form.get('language', 'en-US')
-        voice_gender = request.form.get('voice', 'Male')
+        voice_gender = request.form.get('voice', 'Male').strip().lower()
 
         # Save uploaded file
         filename = secure_filename(file.filename)
@@ -75,17 +74,17 @@ def handle_upload():
         text = extract_text(upload_path, file_ext)
 
         # Fix for "no running event loop" error
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        voices = loop.run_until_complete(edge_tts.list_voices())
+        voices = asyncio.run(edge_tts.list_voices())
 
         suitable_voices = [
-            v for v in voices 
-            if v['Locale'].startswith(language.split('-')[0]) 
-            and v['Gender'].lower() == voice_gender.lower()
+            v for v in voices
+            if v['Locale'].startswith(language.split('-')[0])
+            and v['Gender'].strip().lower() == voice_gender
         ]
+
         if not suitable_voices:
             return jsonify({'error': 'No suitable voice found'}), 400
+
         voice = suitable_voices[0]['ShortName']
 
         # Generate output filename
@@ -95,8 +94,8 @@ def handle_upload():
         # Convert text to speech
         socketio.emit('progress', {'progress': 50, 'status': 'Converting to speech...'}, room=sid)
 
-        # Instead of asyncio.create_task(), use threading
-        loop.run_until_complete(generate_tts(text, voice, output_path, sid))
+        # Run TTS conversion asynchronously
+        asyncio.run(generate_tts(text, voice, output_path, sid))
 
         return jsonify({
             'text': text,
