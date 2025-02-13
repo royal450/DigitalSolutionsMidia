@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Royal Dev - PDF, HTML, Text to Speech</title>
+    <title></title>
     
     <!-- Styles & Fonts -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -257,155 +257,132 @@
 
 
 <script>
-  
-  
-  
   const socket = io.connect("http://127.0.0.1:5000");
 
-const dropZone = document.getElementById('drop-zone');
-const fileInput = document.getElementById('fileInput');
-const progressBar = document.getElementById('progressBar');
-const progressPercent = document.getElementById('progressPercent');
-const extractedTextContent = document.getElementById('extractedTextContent');
-const audioElement = document.getElementById('audioElement');
-const audioPlayer = document.getElementById('audioPlayer');
-const downloadBtn = document.getElementById('downloadBtn');
-const statusLogs = document.getElementById('statusLogs');
-const logContainer = document.getElementById('logContainer');
-const textPreview = document.getElementById('textPreview');
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('fileInput');
+  const progressBar = document.getElementById('progressBar');
+  const progressPercent = document.getElementById('progressPercent');
+  const extractedTextContent = document.getElementById('extractedTextContent');
+  const audioElement = document.getElementById('audioElement');
+  const audioPlayer = document.getElementById('audioPlayer');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const statusLogs = document.getElementById('statusLogs');
+  const logContainer = document.getElementById('logContainer');
+  const textPreview = document.getElementById('textPreview');
 
-// 📌 Drag & Drop Handlers
-['dragover', 'dragenter'].forEach(event => {
-  dropZone.addEventListener(event, (e) => {
-    e.preventDefault();
-    dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
-  });
-});
-
-['dragleave', 'drop'].forEach(event => {
-  dropZone.addEventListener(event, (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
-    if (event === 'drop') handleFile(e.dataTransfer.files[0]);
-  });
-});
-
-fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-
-// 📌 File Handling
-async function handleFile(file) {
-  if (!file) return;
-  if (!['application/pdf', 'text/html', 'text/plain'].includes(file.type)) {
-    return addLog('❌ Invalid file type!', 'error');
-  }
-
-  document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
-
-  const formData = new FormData();
-  formData.append('file', file);
-
-  try {
-    showProgress(true);
-    addLog('📤 Uploading file...', 'info');
-
-    const response = await fetch(`/upload?sid=${socket.id}`, {
-      method: 'POST',
-      body: formData
+  // 📌 Drag & Drop Handlers
+  ['dragover', 'dragenter'].forEach(event => {
+    dropZone.addEventListener(event, (e) => {
+      e.preventDefault();
+      dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
     });
-
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
-
-    addLog('✅ Conversion Complete!', 'success');
-    showTextPreview(data.extracted_text);
-    showAudioPlayer(data.mp3_file);
-  } catch (error) {
-    addLog(`❌ Error: ${error.message}`, 'error');
-  } finally {
-    showProgress(false);
-  }
-}
-
-// 📌 Receive Data from Flask
-socket.on("update_data", (data) => {
-  if (data.language) document.getElementById("language").value = data.language;
-  if (data.voice) document.getElementById("voice").value = data.voice;
-  if (data.extracted_text) showTextPreview(data.extracted_text);
-  if (data.mp3_file) showAudioPlayer(data.mp3_file);
-});
-
-// 📌 Progress Update
-socket.on("progress", (data) => {
-  updateProgress(data.progress);
-  addLog(data.status, "info");
-});
-
-// 📌 UI Functions
-function addLog(message, type = 'info') {
-  const logEntry = document.createElement('div');
-  logEntry.className = `text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
-  logEntry.innerHTML = `<span>${message}</span>`;
-  statusLogs.appendChild(logEntry);
-  logContainer.scrollTop = logContainer.scrollHeight;
-}
-
-function showProgress(show) {
-  document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
-}
-
-function updateProgress(percentage) {
-  progressBar.style.width = `${percentage}%`;
-  progressPercent.textContent = `${percentage}%`;
-}
-
-// 📌 Word Highlighting & Audio Sync
-function highlightWords(text) {
-  extractedTextContent.innerHTML = text.split(/\s+/)
-    .map(word => `<span class="word">${word}</span>`)
-    .join(' ');
-}
-
-function setupAudioSync() {
-  const words = document.querySelectorAll('.word');
-  let currentWord = -1;
-  const wordDuration = audioElement.duration / words.length;
-
-  audioElement.addEventListener('timeupdate', () => {
-    const newIndex = Math.floor(audioElement.currentTime / wordDuration);
-    if (newIndex !== currentWord && newIndex < words.length) {
-      words.forEach(word => word.classList.remove('highlight-word'));
-      words[newIndex].classList.add('highlight-word');
-      words[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      currentWord = newIndex;
-    }
   });
-}
 
-function showTextPreview(text) {
-  textPreview.style.display = 'block';
-  highlightWords(text);
-  setupAudioSync();
-}
+  ['dragleave', 'drop'].forEach(event => {
+    dropZone.addEventListener(event, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+      if (event === 'drop') handleFile(e.dataTransfer.files[0]);
+    });
+  });
 
-function showAudioPlayer(filename) {
-  audioPlayer.style.display = 'block';
-  audioElement.src = `/output/${filename}`;
-  downloadBtn.disabled = false;
-  downloadBtn.onclick = () => {
-    const link = document.createElement('a');
-    link.href = audioElement.src;
-    link.download = filename;
-    link.click();
-  };
-}
-  
-  
+  fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+  // 📌 File Handling
+  async function handleFile(file) {
+    if (!file) return;
+    if (!['application/pdf', 'text/html', 'text/plain'].includes(file.type)) {
+      return addLog('❌ Invalid file type!', 'error');
+    }
+
+    document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      showProgress(true);
+      addLog('📤 Uploading file...', 'info');
+
+      const response = await fetch(`/upload?sid=${socket.id}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      addLog('✅ Conversion Complete!', 'success');
+      showTextPreview(data.extracted_text);
+      showAudioPlayer(data.mp3_file);
+    } catch (error) {
+      addLog(`❌ Error: ${error.message}`, 'error');
+    } finally {
+      showProgress(false);
+    }
+  }
+
+  // 📌 Receive Data from Flask
+  socket.on("update_data", (data) => {
+    if (data.language) document.getElementById("language").value = data.language;
+    if (data.voice) document.getElementById("voice").value = data.voice;
+    if (data.extracted_text) showTextPreview(data.extracted_text);
+    if (data.mp3_file) showAudioPlayer(data.mp3_file);
+  });
+
+  // 📌 Progress Update
+  socket.on("progress", (data) => {
+    updateProgress(data.progress);
+    addLog(data.status, "info");
+  });
+
+  // 📌 Word Highlighting & Audio Sync
+  function highlightWords(text) {
+    extractedTextContent.innerHTML = text.split(/\s+/)
+      .map(word => `<span class="word">${word}</span>`)
+      .join(' ');
+  }
+
+  function setupAudioSync() {
+    const words = document.querySelectorAll('.word');
+    let currentWord = -1;
+    const wordDuration = audioElement.duration / words.length;
+
+    audioElement.addEventListener('timeupdate', () => {
+      const newIndex = Math.floor(audioElement.currentTime / wordDuration);
+      if (newIndex !== currentWord && newIndex < words.length) {
+        words.forEach(word => word.classList.remove('highlight-word'));
+        words[newIndex].classList.add('highlight-word');
+        words[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        currentWord = newIndex;
+      }
+    });
+  }
+
+  function showTextPreview(text) {
+    textPreview.style.display = 'block';
+    highlightWords(text);
+    setupAudioSync();
+  }
+
+  function showAudioPlayer(filename) {
+    audioPlayer.style.display = 'block';
+    audioElement.src = `/output/${filename}`;
+    downloadBtn.disabled = false;
+    downloadBtn.onclick = () => {
+      const link = document.createElement('a');
+      link.href = audioElement.src;
+      link.download = filename;
+      link.click();
+    };
+  }
 </script>
-
 
 
 
 
 </body>
                             </html>
+
     
