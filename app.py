@@ -2,6 +2,7 @@ import os
 import json
 import shutil
 import pdfkit
+import asyncio
 import edge_tts
 import requests
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -57,8 +58,14 @@ def extract_text_from_txt(txt_path):
 # 📌 Function to Generate Audio with Edge TTS
 async def generate_audio(text, lang, voice, output_path):
     voice_id = LANGUAGE_VOICE_MAPPING.get(lang, {}).get(voice, "en-US-JennyNeural")
-    tts = edge_tts.Communicate(text, voice=voice_id)
-    await tts.save(output_path)
+    
+    try:
+        print(f"🔹 Generating audio at: {output_path}")
+        tts = edge_tts.Communicate(text, voice=voice_id)
+        await tts.save(output_path)
+        print(f"✅ Audio saved successfully at: {output_path}")
+    except Exception as e:
+        print(f"❌ Error generating audio: {e}")
 
 # 📌 Handle File Upload
 @app.route("/upload", methods=["POST"])
@@ -86,7 +93,9 @@ def upload_file():
         output_audio_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{os.path.splitext(filename)[0]}.mp3")
 
         # 📌 Generate Audio in Background
-        socketio.start_background_task(generate_audio, extracted_text, "en-US", "Female", output_audio_path)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(generate_audio(extracted_text, "en-US", "Female", output_audio_path))
 
         return jsonify({
             "extracted_text": extracted_text,
@@ -98,7 +107,7 @@ def upload_file():
 # 📌 Serve Generated Audio Files
 @app.route("/output/<filename>")
 def serve_audio(filename):
-    return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+    return send_from_directory(app.config['OUTPUT_FOLDER'], filename, mimetype="audio/mpeg")
 
 # 📌 Handle Real-Time Language & Voice Update
 @socketio.on("update_language_voice")
@@ -112,13 +121,11 @@ def update_language_voice(data):
 def sync_audio_highlight(data):
     socketio.emit("highlight_word", data, broadcast=True)
 
-# 📌 Run Flask App
-
-# Serve index.html
+# 📌 Serve index.html
 @app.route("/")
 def index():
     return render_template("index.html")
-                  
 
+# 📌 Run Flask App
 if __name__ == "__main__":
     socketio.run(app, debug=True)
