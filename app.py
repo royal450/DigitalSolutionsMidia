@@ -93,6 +93,12 @@ def handle_connect():
 def handle_disconnect():
     print("Client Disconnected")
 
+# 🔥 Home Route: Serve index.html 🔥
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
 # 🔥 Run Server 🔥
 if __name__ == "__main__":
     sio.run(app, host="0.0.0.0", port=5000)
