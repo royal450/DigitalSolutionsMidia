@@ -246,166 +246,205 @@
 
 
 
+
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
 
+
+
+
+
+
 <script>
+  
+  
   let socket = io.connect("http://127.0.0.1:5000");
 
-  // 📌 Drag & Drop Handlers
-  const dropZone = document.getElementById('drop-zone');
-  const fileInput = document.getElementById('fileInput');
+// 📌 Drag & Drop Handlers
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('fileInput');
 
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
-  });
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
+});
 
-  dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
-  });
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+});
 
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
-    const files = e.dataTransfer.files;
-    if (files.length) handleFile(files[0]);
-  });
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+  const files = e.dataTransfer.files;
+  if (files.length) handleFile(files[0]);
+});
 
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length) handleFile(e.target.files[0]);
-  });
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
 
-  // 📌 Handle File Upload & Processing
-  async function handleFile(file) {
-    if (!file) return;
+// 📌 Handle File Upload & Processing
+async function handleFile(file) {
+  if (!file) return;
 
-    const allowedTypes = ['application/pdf', 'text/html', 'text/plain'];
-    if (!allowedTypes.includes(file.type)) {
-      addLog('❌ Invalid file type!', 'error');
-      return;
-    }
-
-    document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      showProgress(true);
-      addLog('📤 Uploading file...', 'info');
-
-      const response = await fetch(`/upload?sid=${socket.id}`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-
-      addLog('✅ Conversion Complete!', 'success');
-      showAudioPlayer(data.mp3_file);
-      showTextPreview(data.extracted_text);
-    } catch (error) {
-      addLog(`❌ Error: ${error.message}`, 'error');
-    } finally {
-      showProgress(false);
-    }
+  const allowedTypes = ['application/pdf', 'text/html', 'text/plain'];
+  if (!allowedTypes.includes(file.type)) {
+    addLog('❌ Invalid file type!', 'error');
+    return;
   }
 
-  // 📌 Real-time Progress Updates (Socket.IO)
-  socket.on("progress", (data) => {
-    updateProgress(data.progress);
-    addLog(data.status, "info");
-  });
+  document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
 
-  // 📌 UI Functions
-  function addLog(message, type = 'info') {
-    const logEntry = document.createElement('div');
-    logEntry.className = `flex items-center text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
+  const formData = new FormData();
+  formData.append('file', file);
 
-    const icon = type === 'error' ? '❌' :
-      type === 'success' ? '✅' : 'ℹ️';
+  try {
+    showProgress(true);
+    addLog('📤 Uploading file...', 'info');
 
-    logEntry.innerHTML = `
-            <span class="mr-2">${icon}</span>
-            <span>${message}</span>
-        `;
-
-    document.getElementById('statusLogs').appendChild(logEntry);
-    document.getElementById('logContainer').scrollTop = document.getElementById('logContainer').scrollHeight;
-  }
-
-  function showProgress(show) {
-    document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
-  }
-
-  function updateProgress(percentage) {
-    document.getElementById('progressBar').style.width = `${percentage}%`;
-    document.getElementById('progressPercent').textContent = `${percentage}%`;
-  }
-
-  // 📌 Word Highlighting & Audio Sync
-  function highlightWords(text) {
-    const words = text.match(/[\w']+|[.,!?;”“"‘’]/g) || [];
-    const formatted = words.map(word => `<span class="word">${word}</span>`).join(' ');
-    document.getElementById('extractedTextContent').innerHTML = formatted;
-  }
-
-  function setupAudioSync() {
-    const audioElement = document.getElementById('audioElement');
-    const words = document.getElementsByClassName('word');
-    let currentWord = -1;
-
-    audioElement.addEventListener('loadedmetadata', () => {
-      audioElement.addEventListener('timeupdate', () => {
-        const currentTime = audioElement.currentTime;
-        const wordDuration = audioElement.duration / words.length;
-        const newIndex = Math.floor(currentTime / wordDuration);
-
-        if (newIndex !== currentWord && newIndex < words.length) {
-          Array.from(words).forEach(word =>
-            word.classList.remove('highlight-word'));
-          words[newIndex].classList.add('highlight-word');
-          currentWord = newIndex;
-
-          words[newIndex].scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-        }
-      });
+    const response = await fetch(`/upload?sid=${socket.id}`, {
+      method: 'POST',
+      body: formData
     });
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+
+    addLog('✅ Conversion Complete!', 'success');
+    showAudioPlayer(data.mp3_file);
+    showTextPreview(data.extracted_text);
+  } catch (error) {
+    addLog(`❌ Error: ${error.message}`, 'error');
+  } finally {
+    showProgress(false);
+  }
+}
+
+// 📌 Receive Data from Backend (Flask)
+socket.on("update_data", (data) => {
+  console.log("Received from Flask:", data);
+
+  if (data.language) {
+    document.getElementById("language").value = data.language;
   }
 
-  function showTextPreview(text) {
-    document.getElementById('textPreview').style.display = 'block';
-    highlightWords(text);
-    setupAudioSync();
-
-    void document.getElementById('extractedTextContent').offsetWidth;
-    document.getElementById('extractedTextContent').classList.add('fade-in');
+  if (data.voice) {
+    document.getElementById("voice").value = data.voice;
   }
 
-  function showAudioPlayer(filename) {
-    const audioPlayer = document.getElementById('audioPlayer');
-    const audioElement = document.getElementById('audioElement');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    audioPlayer.style.display = 'block';
-    audioElement.src = `/output/${filename}`;
-    downloadBtn.disabled = false;
-    downloadBtn.onclick = () => {
-      const link = document.createElement('a');
-      link.href = audioElement.src;
-      link.download = filename;
-      link.click();
-    };
+  if (data.extracted_text) {
+    showTextPreview(data.extracted_text);
   }
+
+  if (data.mp3_file) {
+    showAudioPlayer(data.mp3_file);
+  }
+});
+
+// 📌 Real-time Progress Updates (Socket.IO)
+socket.on("progress", (data) => {
+  updateProgress(data.progress);
+  addLog(data.status, "info");
+});
+
+// 📌 UI Functions
+function addLog(message, type = 'info') {
+  const logEntry = document.createElement('div');
+  logEntry.className = `flex items-center text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
+
+  const icon = type === 'error' ? '❌' :
+    type === 'success' ? '✅' : 'ℹ️';
+
+  logEntry.innerHTML = `
+        <span class="mr-2">${icon}</span>
+        <span>${message}</span>
+    `;
+
+  document.getElementById('statusLogs').appendChild(logEntry);
+  document.getElementById('logContainer').scrollTop = document.getElementById('logContainer').scrollHeight;
+}
+
+function showProgress(show) {
+  document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
+}
+
+function updateProgress(percentage) {
+  document.getElementById('progressBar').style.width = `${percentage}%`;
+  document.getElementById('progressPercent').textContent = `${percentage}%`;
+}
+
+// 📌 Word Highlighting & Audio Sync
+function highlightWords(text) {
+  const words = text.match(/[\w']+|[.,!?;”“"‘’]/g) || [];
+  const formatted = words.map(word => `<span class="word">${word}</span>`).join(' ');
+  document.getElementById('extractedTextContent').innerHTML = formatted;
+}
+
+function setupAudioSync() {
+  const audioElement = document.getElementById('audioElement');
+  const words = document.getElementsByClassName('word');
+  let currentWord = -1;
+
+  audioElement.addEventListener('loadedmetadata', () => {
+    audioElement.addEventListener('timeupdate', () => {
+      const currentTime = audioElement.currentTime;
+      const wordDuration = audioElement.duration / words.length;
+      const newIndex = Math.floor(currentTime / wordDuration);
+
+      if (newIndex !== currentWord && newIndex < words.length) {
+        Array.from(words).forEach(word =>
+          word.classList.remove('highlight-word'));
+        words[newIndex].classList.add('highlight-word');
+        currentWord = newIndex;
+
+        words[newIndex].scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    });
+  });
+}
+
+function showTextPreview(text) {
+  document.getElementById('textPreview').style.display = 'block';
+  highlightWords(text);
+  setupAudioSync();
+
+  void document.getElementById('extractedTextContent').offsetWidth;
+  document.getElementById('extractedTextContent').classList.add('fade-in');
+}
+
+function showAudioPlayer(filename) {
+  const audioPlayer = document.getElementById('audioPlayer');
+  const audioElement = document.getElementById('audioElement');
+  const downloadBtn = document.getElementById('downloadBtn');
+
+  audioPlayer.style.display = 'block';
+  audioElement.src = `/output/${filename}`;
+  downloadBtn.disabled = false;
+  downloadBtn.onclick = () => {
+    const link = document.createElement('a');
+    link.href = audioElement.src;
+    link.download = filename;
+    link.click();
+  };
+}
+  
+  
+  
+
+
 </script>
 
 
 
+
+
+
+
 </body>
-    </html>
+                            </html>
     
