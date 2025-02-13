@@ -1,115 +1,98 @@
-from flask import Flask, render_template, request, send_from_directory, jsonify
 import os
-from gtts import gTTS
+import json
+import time
+import edge_tts
+import socketio
+import tempfile
+from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask_socketio import SocketIO
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
-import time
 
 app = Flask(__name__)
+sio = SocketIO(app, cors_allowed_origins="*")  # Real-time support
 
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'output'
-STATUS_FILE = "status.txt"
-
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
-
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {'pdf', 'html', 'txt', 'text'}
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def update_status(status, progress, extracted_text=""):
-    with open(STATUS_FILE, "w") as f:
-        f.write(f"{status}|{progress}|{extracted_text}")
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/upload', methods=['POST'])
-def upload():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file selected!"})
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No file selected!"})
-
-    if not allowed_file(file.filename):
-        return jsonify({"error": "Invalid file format! Only PDF, HTML, and TXT are allowed."})
-
-    try:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(file_path)
-        update_status(f"📂 File uploaded: {file.filename}", 5)
-        time.sleep(1)
-
-        update_status("🔍 Extracting text...", 15)
-        extracted_text = extract_text(file_path, file.filename)
-
-        update_status("🎤 Converting text to speech...", 50, extracted_text)
-
-        mp3_files = convert_text_to_speech(extracted_text)
-
-        update_status("✅ Conversion complete!", 100, extracted_text)
-
-        return jsonify({"mp3_files": mp3_files, "extracted_text": extracted_text})
-
-    except Exception as e:
-        return jsonify({"error": str(e)})
-
-@app.route('/status')
-def get_status():
-    if os.path.exists(STATUS_FILE):
-        with open(STATUS_FILE, "r") as f:
-            data = f.read().split("|")
-            status = data[0]
-            progress = int(data[1])
-            extracted_text = data[2] if len(data) > 2 else ""
-            return jsonify({"status": status, "progress": progress, "extracted_text": extracted_text})
-    return jsonify({"status": "Idle", "progress": 0, "extracted_text": ""})
-
-def extract_text(file_path, filename):
-    extracted_text = ""
-
-    if filename.endswith('.pdf'):
-        reader = PdfReader(file_path)
-        extracted_text = "\n".join([page.extract_text() or '' for page in reader.pages])
-
-    elif filename.endswith('.html'):
-        with open(file_path, "r", encoding="utf-8") as f:
-            soup = BeautifulSoup(f, "html.parser")
-            extracted_text = soup.get_text()
-
-    elif filename.endswith(('.txt', '.text')):
-        with open(file_path, "r", encoding="utf-8") as f:
-            extracted_text = f.read()
-
-    extracted_text = extracted_text.strip()
-    return extracted_text
-
-def convert_text_to_speech(text):
-    mp3_files = []
+# 🔥 Function: Extract Text from PDF 🔥
+def extract_text_from_pdf(file_path, sid):
+    reader = PdfReader(file_path)
+    total_pages = len(reader.pages)
+    extracted_text = []
     
-    if text:
-        try:
-            tts = gTTS(text=text, lang='en')
-            filename = "output.mp3"
-            output_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
-            tts.save(output_path)
-            mp3_files.append(filename)
-        except Exception as e:
-            print(f"Error during TTS conversion: {str(e)}")
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text()
+        if text:
+            extracted_text.append(text)
+        
+        progress = int(((i + 1) / total_pages) * 100)
+        sio.emit("progress", {"status": f"Processing Page {i+1}/{total_pages}", "progress": progress}, room=sid)
+    
+    return "\n".join(extracted_text)
 
-    return mp3_files
+# 🔥 Function: Extract Text from HTML 🔥
+def extract_text_from_html(file_path):
+    with open(file_path, "r", encoding="utf-8") as file:
+        soup = BeautifulSoup(file, "html.parser")
+    return soup.get_text()
 
-@app.route('/output/<path:filename>')
+# 🔥 Function: Convert Text to Speech (Edge TTS) 🔥
+async def text_to_speech(text, output_file, sid):
+    voice = "en-US-AriaNeural"
+    tts = edge_tts.Communicate(text, voice)
+    await tts.save(output_file)
+    
+    sio.emit("progress", {"status": "✅ TTS Conversion Complete!", "progress": 100}, room=sid)
+
+# 🔥 Upload & Process Route 🔥
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    file_ext = file.filename.split(".")[-1].lower()
+    sid = request.args.get("sid")
+
+    temp_file = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(temp_file)
+
+    sio.emit("progress", {"status": "📤 File Uploaded, Processing Started...", "progress": 10}, room=sid)
+
+    if file_ext == "pdf":
+        extracted_text = extract_text_from_pdf(temp_file, sid)
+    elif file_ext in ["html", "htm"]:
+        extracted_text = extract_text_from_html(temp_file)
+    else:
+        extracted_text = file.read().decode("utf-8")
+
+    sio.emit("progress", {"status": "🎤 Converting Text to Speech...", "progress": 50}, room=sid)
+
+    output_mp3 = os.path.join(OUTPUT_FOLDER, "output.mp3")
+    sio.start_background_task(text_to_speech, extracted_text, output_mp3, sid)
+
+    return jsonify({"extracted_text": extracted_text, "mp3_file": "output.mp3"})
+
+# 🔥 Serve Output MP3 🔥
+@app.route("/output/<filename>")
 def serve_audio(filename):
-    return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+    return send_from_directory(OUTPUT_FOLDER, filename)
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+# 🔥 Socket.IO Connection 🔥
+@sio.on("connect")
+def handle_connect():
+    print("Client Connected")
+
+@sio.on("disconnect")
+def handle_disconnect():
+    print("Client Disconnected")
+
+# 🔥 Run Server 🔥
+if __name__ == "__main__":
+    sio.run(app, host="0.0.0.0", port=5000)
