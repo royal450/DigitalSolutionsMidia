@@ -1,104 +1,103 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from flask_cors import CORS
-from flask_socketio import SocketIO
 import os
+import time
+import json
+import requests
 import pdfkit
 import edge_tts
 import asyncio
-import PyPDF2
+from flask import Flask, render_template, request, send_from_directory
+from flask_socketio import SocketIO
+from werkzeug.utils import secure_filename
+from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
-import re
+
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "output"
+ALLOWED_EXTENSIONS = {"pdf", "html", "txt", "text"}
 
 app = Flask(__name__)
-CORS(app)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-UPLOAD_FOLDER = 'static/uploads'
-OUTPUT_FOLDER = 'static/output'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-# Ensure upload & output folders exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+if not os.path.exists(OUTPUT_FOLDER):
+    os.makedirs(OUTPUT_FOLDER)
 
-# Function to extract text from PDF
-def extract_text_from_pdf(file_path):
-    text = ""
-    with open(file_path, "rb") as pdf_file:
-        reader = PyPDF2.PdfReader(pdf_file)
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
-    return text.strip()
+def extract_text(file_path, file_ext):
+    extracted_text = ""
+    if file_ext == "pdf":
+        with open(file_path, "rb") as f:
+            reader = PdfReader(f)
+            for page in reader.pages:
+                extracted_text += page.extract_text() + "\n"
+    elif file_ext == "html":
+        with open(file_path, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "html.parser")
+            extracted_text = soup.get_text()
+    else:  # For txt or text files
+        with open(file_path, "r", encoding="utf-8") as f:
+            extracted_text = f.read()
+    return extracted_text.strip()
 
-# Function to extract text from HTML
-def extract_text_from_html(file_path):
-    with open(file_path, "r", encoding="utf-8") as html_file:
-        soup = BeautifulSoup(html_file, "html.parser")
-        text = soup.get_text(separator=" ").strip()
-    return text
+async def generate_audio(text, language, voice, output_path):
+    voice_map = {"Male": "en-US-GuyNeural", "Female": "en-US-JennyNeural"}
+    voice_option = voice_map.get(voice, "en-US-JennyNeural")
 
-# Function to generate speech from text
-async def generate_speech(text, lang, gender, filename):
-    voice_map = {
-        "Male": "en-US-GuyNeural",
-        "Female": "en-US-JennyNeural"
-    }
-    voice = voice_map.get(gender, "en-US-JennyNeural")
-    
-    output_path = os.path.join(OUTPUT_FOLDER, filename)
-    tts = edge_tts.Communicate(text, voice)
+    tts = edge_tts.Communicate(text, voice_option)
     await tts.save(output_path)
-    return output_path
 
-# File Upload Route
-@app.route("/upload", methods=["POST"])
-def upload_file():
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
-
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(file_path)
-
-    # Extract text based on file type
-    if file.filename.endswith(".pdf"):
-        extracted_text = extract_text_from_pdf(file_path)
-    elif file.filename.endswith(".html"):
-        extracted_text = extract_text_from_html(file_path)
-    elif file.filename.endswith(".txt") or file.filename.endswith(".text"):
-        with open(file_path, "r", encoding="utf-8") as txt_file:
-            extracted_text = txt_file.read()
-    else:
-        return jsonify({"error": "Unsupported file type"}), 400
-
-    if not extracted_text:
-        return jsonify({"error": "No text found in file"}), 400
-
-    # Get language and voice settings from frontend
-    lang = request.args.get("lang", "en-US")
-    gender = request.args.get("gender", "Female")
-
-    # Generate speech from extracted text
-    mp3_filename = file.filename.rsplit(".", 1)[0] + ".mp3"
-    asyncio.run(generate_speech(extracted_text, lang, gender, mp3_filename))
-
-    return jsonify({
-        "extracted_text": extracted_text,
-        "mp3_file": mp3_filename
-    })
-
-# Serve audio files
-@app.route("/output/<filename>")
-def serve_output(filename):
-    return send_from_directory(OUTPUT_FOLDER, filename)
-
-# Main Route
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# Start Flask App
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return {"error": "No file part"}, 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return {"error": "No selected file"}, 400
+
+    file_ext = file.filename.rsplit(".", 1)[1].lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        return {"error": "Invalid file format"}, 400
+
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    file.save(file_path)
+
+    sid = request.args.get("sid")
+    socketio.emit("progress", {"progress": 10, "status": "Extracting text..."}, room=sid)
+
+    extracted_text = extract_text(file_path, file_ext)
+    
+    if not extracted_text:
+        return {"error": "No text found in file"}, 400
+
+    socketio.emit("progress", {"progress": 30, "status": "Text extracted!"}, room=sid)
+
+    language = request.form.get("language", "en-US")
+    voice = request.form.get("voice", "Female")
+    output_filename = filename.rsplit(".", 1)[0] + ".mp3"
+    output_path = os.path.join(app.config["OUTPUT_FOLDER"], output_filename)
+
+    socketio.emit("progress", {"progress": 50, "status": "Generating speech..."}, room=sid)
+
+    asyncio.run(generate_audio(extracted_text, language, voice, output_path))
+
+    socketio.emit("progress", {"progress": 90, "status": "Finalizing..."}, room=sid)
+    time.sleep(1)
+    socketio.emit("progress", {"progress": 100, "status": "Completed!"}, room=sid)
+
+    return {"extracted_text": extracted_text, "mp3_file": output_filename}
+
+@app.route("/output/<filename>")
+def get_audio(filename):
+    return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
+
 if __name__ == "__main__":
     socketio.run(app, debug=True)
