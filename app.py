@@ -1,12 +1,13 @@
 import os
 import asyncio
 import edge_tts
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory , render_template
 from flask_socketio import SocketIO, emit
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 import uuid
 from werkzeug.utils import secure_filename
+
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -117,5 +118,9 @@ def handle_connect():
 def handle_disconnect():
     print('Client disconnected')
 
+@app.route('/')
+def index():
+    return render_template('index.html')
+    
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)
