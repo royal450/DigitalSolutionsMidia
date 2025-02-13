@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 import uuid
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['OUTPUT_FOLDER'] = 'output'
 app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'html', 'txt', 'text'}
@@ -33,7 +33,7 @@ def extract_text(file_path, extension):
             with open(file_path, 'r', encoding='utf-8') as f:
                 soup = BeautifulSoup(f, 'html.parser')
                 return soup.get_text(separator='\n', strip=True)
-        else:  # txt or text
+        else:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
     except Exception as e:
@@ -46,15 +46,6 @@ async def generate_tts(text, voice, output_file, sid):
         socketio.emit('progress', {'progress': 100, 'status': 'Conversion complete'}, room=sid)
     except Exception as e:
         socketio.emit('error', {'error': f"TTS conversion failed: {str(e)}"}, room=sid)
-
-def get_suitable_voice(language, voice_gender):
-    voices = asyncio.run(edge_tts.list_voices())  # Fix here
-    suitable_voices = [
-        v for v in voices
-        if v['Locale'].startswith(language.split('-')[0])
-        and v['Gender'].lower() == voice_gender.lower()
-    ]
-    return suitable_voices[0]['ShortName'] if suitable_voices else None
 
 @app.route('/upload', methods=['POST'])
 def handle_upload():
@@ -83,10 +74,19 @@ def handle_upload():
         file_ext = filename.rsplit('.', 1)[1].lower()
         text = extract_text(upload_path, file_ext)
 
-        # Get suitable voice
-        voice = get_suitable_voice(language, voice_gender)
-        if not voice:
+        # Fix for "no running event loop" error
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        voices = loop.run_until_complete(edge_tts.list_voices())
+
+        suitable_voices = [
+            v for v in voices 
+            if v['Locale'].startswith(language.split('-')[0]) 
+            and v['Gender'].lower() == voice_gender.lower()
+        ]
+        if not suitable_voices:
             return jsonify({'error': 'No suitable voice found'}), 400
+        voice = suitable_voices[0]['ShortName']
 
         # Generate output filename
         output_filename = f"{uuid.uuid4()}.mp3"
@@ -94,7 +94,9 @@ def handle_upload():
 
         # Convert text to speech
         socketio.emit('progress', {'progress': 50, 'status': 'Converting to speech...'}, room=sid)
-        asyncio.create_task(generate_tts(text, voice, output_path, sid))
+
+        # Instead of asyncio.create_task(), use threading
+        loop.run_until_complete(generate_tts(text, voice, output_path, sid))
 
         return jsonify({
             'text': text,
@@ -119,7 +121,7 @@ def handle_disconnect():
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # ✅ Fix for index.html
+    return render_template('index.html')
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)
