@@ -256,43 +256,47 @@
 
 
 
-<script>
+<<script>
   
   
-  let socket = io.connect("http://127.0.0.1:5000");
+  
+  const socket = io.connect("http://127.0.0.1:5000");
 
-// 📌 Drag & Drop Handlers
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('fileInput');
+const progressBar = document.getElementById('progressBar');
+const progressPercent = document.getElementById('progressPercent');
+const extractedTextContent = document.getElementById('extractedTextContent');
+const audioElement = document.getElementById('audioElement');
+const audioPlayer = document.getElementById('audioPlayer');
+const downloadBtn = document.getElementById('downloadBtn');
+const statusLogs = document.getElementById('statusLogs');
+const logContainer = document.getElementById('logContainer');
+const textPreview = document.getElementById('textPreview');
 
-dropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
+// 📌 Drag & Drop Handlers
+['dragover', 'dragenter'].forEach(event => {
+  dropZone.addEventListener(event, (e) => {
+    e.preventDefault();
+    dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
+  });
 });
 
-dropZone.addEventListener('dragleave', () => {
-  dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+['dragleave', 'drop'].forEach(event => {
+  dropZone.addEventListener(event, (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+    if (event === 'drop') handleFile(e.dataTransfer.files[0]);
+  });
 });
 
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
-  const files = e.dataTransfer.files;
-  if (files.length) handleFile(files[0]);
-});
+fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
 
-fileInput.addEventListener('change', (e) => {
-  if (e.target.files.length) handleFile(e.target.files[0]);
-});
-
-// 📌 Handle File Upload & Processing
+// 📌 File Handling
 async function handleFile(file) {
   if (!file) return;
-
-  const allowedTypes = ['application/pdf', 'text/html', 'text/plain'];
-  if (!allowedTypes.includes(file.type)) {
-    addLog('❌ Invalid file type!', 'error');
-    return;
+  if (!['application/pdf', 'text/html', 'text/plain'].includes(file.type)) {
+    return addLog('❌ Invalid file type!', 'error');
   }
 
   document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
@@ -313,8 +317,8 @@ async function handleFile(file) {
     if (data.error) throw new Error(data.error);
 
     addLog('✅ Conversion Complete!', 'success');
-    showAudioPlayer(data.mp3_file);
     showTextPreview(data.extracted_text);
+    showAudioPlayer(data.mp3_file);
   } catch (error) {
     addLog(`❌ Error: ${error.message}`, 'error');
   } finally {
@@ -322,28 +326,15 @@ async function handleFile(file) {
   }
 }
 
-// 📌 Receive Data from Backend (Flask)
+// 📌 Receive Data from Flask
 socket.on("update_data", (data) => {
-  console.log("Received from Flask:", data);
-
-  if (data.language) {
-    document.getElementById("language").value = data.language;
-  }
-
-  if (data.voice) {
-    document.getElementById("voice").value = data.voice;
-  }
-
-  if (data.extracted_text) {
-    showTextPreview(data.extracted_text);
-  }
-
-  if (data.mp3_file) {
-    showAudioPlayer(data.mp3_file);
-  }
+  if (data.language) document.getElementById("language").value = data.language;
+  if (data.voice) document.getElementById("voice").value = data.voice;
+  if (data.extracted_text) showTextPreview(data.extracted_text);
+  if (data.mp3_file) showAudioPlayer(data.mp3_file);
 });
 
-// 📌 Real-time Progress Updates (Socket.IO)
+// 📌 Progress Update
 socket.on("progress", (data) => {
   updateProgress(data.progress);
   addLog(data.status, "info");
@@ -352,18 +343,10 @@ socket.on("progress", (data) => {
 // 📌 UI Functions
 function addLog(message, type = 'info') {
   const logEntry = document.createElement('div');
-  logEntry.className = `flex items-center text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
-
-  const icon = type === 'error' ? '❌' :
-    type === 'success' ? '✅' : 'ℹ️';
-
-  logEntry.innerHTML = `
-        <span class="mr-2">${icon}</span>
-        <span>${message}</span>
-    `;
-
-  document.getElementById('statusLogs').appendChild(logEntry);
-  document.getElementById('logContainer').scrollTop = document.getElementById('logContainer').scrollHeight;
+  logEntry.className = `text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
+  logEntry.innerHTML = `<span>${message}</span>`;
+  statusLogs.appendChild(logEntry);
+  logContainer.scrollTop = logContainer.scrollHeight;
 }
 
 function showProgress(show) {
@@ -371,57 +354,40 @@ function showProgress(show) {
 }
 
 function updateProgress(percentage) {
-  document.getElementById('progressBar').style.width = `${percentage}%`;
-  document.getElementById('progressPercent').textContent = `${percentage}%`;
+  progressBar.style.width = `${percentage}%`;
+  progressPercent.textContent = `${percentage}%`;
 }
 
 // 📌 Word Highlighting & Audio Sync
 function highlightWords(text) {
-  const words = text.match(/[\w']+|[.,!?;”“"‘’]/g) || [];
-  const formatted = words.map(word => `<span class="word">${word}</span>`).join(' ');
-  document.getElementById('extractedTextContent').innerHTML = formatted;
+  extractedTextContent.innerHTML = text.split(/\s+/)
+    .map(word => `<span class="word">${word}</span>`)
+    .join(' ');
 }
 
 function setupAudioSync() {
-  const audioElement = document.getElementById('audioElement');
-  const words = document.getElementsByClassName('word');
+  const words = document.querySelectorAll('.word');
   let currentWord = -1;
+  const wordDuration = audioElement.duration / words.length;
 
-  audioElement.addEventListener('loadedmetadata', () => {
-    audioElement.addEventListener('timeupdate', () => {
-      const currentTime = audioElement.currentTime;
-      const wordDuration = audioElement.duration / words.length;
-      const newIndex = Math.floor(currentTime / wordDuration);
-
-      if (newIndex !== currentWord && newIndex < words.length) {
-        Array.from(words).forEach(word =>
-          word.classList.remove('highlight-word'));
-        words[newIndex].classList.add('highlight-word');
-        currentWord = newIndex;
-
-        words[newIndex].scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }
-    });
+  audioElement.addEventListener('timeupdate', () => {
+    const newIndex = Math.floor(audioElement.currentTime / wordDuration);
+    if (newIndex !== currentWord && newIndex < words.length) {
+      words.forEach(word => word.classList.remove('highlight-word'));
+      words[newIndex].classList.add('highlight-word');
+      words[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      currentWord = newIndex;
+    }
   });
 }
 
 function showTextPreview(text) {
-  document.getElementById('textPreview').style.display = 'block';
+  textPreview.style.display = 'block';
   highlightWords(text);
   setupAudioSync();
-
-  void document.getElementById('extractedTextContent').offsetWidth;
-  document.getElementById('extractedTextContent').classList.add('fade-in');
 }
 
 function showAudioPlayer(filename) {
-  const audioPlayer = document.getElementById('audioPlayer');
-  const audioElement = document.getElementById('audioElement');
-  const downloadBtn = document.getElementById('downloadBtn');
-
   audioPlayer.style.display = 'block';
   audioElement.src = `/output/${filename}`;
   downloadBtn.disabled = false;
@@ -434,16 +400,12 @@ function showAudioPlayer(filename) {
 }
   
   
-  
-
-
 </script>
 
 
 
 
 
-
-
 </body>
-</html>
+                            </html>
+    
