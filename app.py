@@ -1,7 +1,6 @@
 import os
 import json
 import shutil
-import pdfkit
 import asyncio
 import edge_tts
 import requests
@@ -97,6 +96,12 @@ def upload_file():
         asyncio.set_event_loop(loop)
         loop.run_until_complete(generate_audio(extracted_text, "en-US", "Female", output_audio_path))
 
+        # Send the data to frontend with SocketIO
+        socketio.emit("update_data", {
+            "extracted_text": extracted_text,
+            "mp3_file": os.path.basename(output_audio_path)
+        }, broadcast=True)
+
         return jsonify({
             "extracted_text": extracted_text,
             "mp3_file": os.path.basename(output_audio_path)
@@ -115,6 +120,13 @@ def update_language_voice(data):
     lang = data.get("language", "en-US")
     voice = data.get("voice", "Female")
     socketio.emit("update_data", {"language": lang, "voice": voice}, broadcast=True)
+
+    # Send highlighted text & generated audio file to all clients
+    if 'extracted_text' in data and 'mp3_file' in data:
+        socketio.emit("update_data", {
+            "extracted_text": data["extracted_text"],
+            "mp3_file": data["mp3_file"]
+        }, broadcast=True)
 
 # 📌 Handle Real-Time Text Highlighting & Audio Sync
 @socketio.on("sync_audio_highlight")
