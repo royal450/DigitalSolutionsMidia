@@ -1,8 +1,6 @@
 import os
 import time
 import json
-import requests
-import pdfkit
 import edge_tts
 import asyncio
 from flask import Flask, render_template, request, send_from_directory
@@ -37,17 +35,26 @@ def extract_text(file_path, file_ext):
         with open(file_path, "r", encoding="utf-8") as f:
             soup = BeautifulSoup(f, "html.parser")
             extracted_text = soup.get_text()
-    else:  # For txt or text files
+    else:
         with open(file_path, "r", encoding="utf-8") as f:
             extracted_text = f.read()
     return extracted_text.strip()
 
-async def generate_audio(text, language, voice, output_path):
+async def generate_audio(text, language, voice, output_path, sid):
     voice_map = {"Male": "en-US-GuyNeural", "Female": "en-US-JennyNeural"}
     voice_option = voice_map.get(voice, "en-US-JennyNeural")
 
     tts = edge_tts.Communicate(text, voice_option)
-    await tts.save(output_path)
+    
+    # 🎤 Generate speech and capture word timestamps
+    with open(output_path, "wb") as f:
+        async for chunk in tts.stream():
+            if chunk["type"] == "audio":
+                f.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                socketio.emit("word_timestamps", {"offset": chunk["offset"], "text": chunk["text"]}, room=sid)
+
+    return output_path
 
 @app.route("/")
 def index():
@@ -74,7 +81,6 @@ def upload_file():
     socketio.emit("progress", {"progress": 10, "status": "Extracting text..."}, room=sid)
 
     extracted_text = extract_text(file_path, file_ext)
-    
     if not extracted_text:
         return {"error": "No text found in file"}, 400
 
@@ -87,7 +93,7 @@ def upload_file():
 
     socketio.emit("progress", {"progress": 50, "status": "Generating speech..."}, room=sid)
 
-    asyncio.run(generate_audio(extracted_text, language, voice, output_path))
+    asyncio.run(generate_audio(extracted_text, language, voice, output_path, sid))
 
     socketio.emit("progress", {"progress": 90, "status": "Finalizing..."}, room=sid)
     time.sleep(1)
