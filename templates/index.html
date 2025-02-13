@@ -91,9 +91,11 @@
         <!-- Header -->
         <div class="text-center mb-8">
             <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                😎 Royal Readers 😎
+                
+               ROYAL RENDER
+                
             </h1>
-            <p class="text-gray-400 mt-2">Convert Documents to Natural Sounding Speech</p>
+            <p class="text-gray-400 mt-2">♥️ Browse Your File Dear ♥️</p>
         </div>
 
         <!-- File Upload Section -->
@@ -105,7 +107,7 @@
                              class="border-2 border-dashed border-blue-400 rounded-lg p-8 cursor-pointer transition-all hover:bg-opacity-10 hover:bg-blue-500">
                             <i class="fas fa-file-upload fa-3x text-blue-400 mb-3"></i>
                             <h3 class="text-lg font-semibold mb-2">Drag & Drop Files</h3>
-                            <p class="text-gray-400 text-sm mb-4">Supported formats: PDF, HTML, TXT</p>
+                            <p class="text-gray-600 text-sm mb-4">Supported formats: PDF, HTML, TXT , Text and Comming Soon....☺️</p>
                             <input type="file" id="fileInput" class="hidden" accept=".pdf,.html,.txt,.text">
                             <button onclick="document.getElementById('fileInput').click()" 
                                     class="btn btn-outline-primary rounded-pill px-6">
@@ -118,33 +120,82 @@
             </div>
         </div>
 
-        <!-- Progress & Status -->
-        <div class="row justify-content-center mb-5">
-            <div class="col-md-8">
-                <div class="card bg-dark border border-primary rounded-lg">
-                    <div class="card-body">
-                        <!-- Progress Bar -->
-                        <div id="progressContainer" class="mb-4" style="display: none;">
-                            <div class="flex justify-between mb-2">
-                                <span class="text-sm text-blue-300">Processing...</span>
-                                <span id="progressPercent" class="text-sm text-blue-300">0%</span>
-                            </div>
-                            <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
-                                <div id="progressBar" 
-                                     class="h-full bg-gradient-to-r from-blue-400 to-purple-500"
-                                     style="width: 0%"></div>
-                            </div>
-                        </div>
 
-                        <!-- Live Logs -->
-                        <div id="logContainer" class="bg-gray-900 rounded-lg p-3 h-40 overflow-y-auto">
-                            <div id="statusLogs" class="space-y-2"></div>
-                        </div>
-                    </div>
+
+
+
+
+<br />
+
+
+
+<!-- Language & Voice Selection -->
+<div class="row justify-content-center mb-4">
+    <div class="col-md-8">
+        <div class="card bg-dark border border-primary rounded-lg">
+            <div class="card-body">
+                <h5 class="text-blue-300 mb-3">Select Language & Voice</h5>
+
+                <!-- Language Dropdown -->
+                <div class="mb-3">
+                    <label class="text-blue-300 mb-1">Language</label>
+                    <select id="language" class="form-control bg-gray-900 text-white border-primary">
+                        <option value="en-US">English</option>
+                        <option value="hi-IN">Hindi</option>
+                        <option value="fr-FR">French</option>
+                        <option value="es-ES">Spanish</option>
+                        <option value="zh-CN">Chinese</option>
+                        <!-- और भी भाषाएँ जोड़ सकते हैं -->
+                    </select>
+                </div>
+
+                <!-- Voice Dropdown -->
+                <div class="mb-3">
+                    <label class="text-blue-300 mb-1">Voice</label>
+                    <select id="voice" class="form-control bg-gray-900 text-white border-primary">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
                 </div>
             </div>
         </div>
+    </div>
+</div>
 
+<!-- Progress & Status -->
+<div class="row justify-content-center mb-5">
+    <div class="col-md-8">
+        <div class="card bg-dark border border-primary rounded-lg">
+            <div class="card-body">
+                <!-- Progress Bar -->
+                <div id="progressContainer" class="mb-4" style="display: none;">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm text-blue-300">Processing...</span>
+                        <span id="progressPercent" class="text-sm text-blue-300">0%</span>
+                    </div>
+                    <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
+                        <div id="progressBar" 
+                             class="h-full bg-gradient-to-r from-blue-400 to-purple-500"
+                             style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Live Logs -->
+                <div id="logContainer" class="bg-gray-900 rounded-lg p-3 h-40 overflow-y-auto">
+                    <div id="statusLogs" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    
+    
+    
+    
+    
+    
+    
+    
         <!-- Extracted Text & Audio Player -->
         <div class="row justify-content-center">
             <div class="col-md-8">
@@ -160,7 +211,20 @@
                     </div>
                 </div>
 
-                <!-- Audio Player -->
+             
+             
+
+
+
+
+
+
+
+
+
+
+
+   <!-- Audio Player -->
                 <div id="audioPlayer" class="card bg-dark border border-primary rounded-lg" style="display: none;">
                     <div class="card-body">
                         <h3 class="text-lg font-semibold mb-3">Generated Audio</h3>
