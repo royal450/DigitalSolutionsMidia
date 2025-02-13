@@ -1,15 +1,14 @@
 import os
 import asyncio
 import edge_tts
-from flask import Flask, request, jsonify, send_from_directory , render_template
+from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_socketio import SocketIO, emit
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 import uuid
 from werkzeug.utils import secure_filename
 
-
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['OUTPUT_FOLDER'] = 'output'
 app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'html', 'txt', 'text'}
@@ -48,6 +47,15 @@ async def generate_tts(text, voice, output_file, sid):
     except Exception as e:
         socketio.emit('error', {'error': f"TTS conversion failed: {str(e)}"}, room=sid)
 
+def get_suitable_voice(language, voice_gender):
+    voices = asyncio.run(edge_tts.list_voices())  # Fix here
+    suitable_voices = [
+        v for v in voices
+        if v['Locale'].startswith(language.split('-')[0])
+        and v['Gender'].lower() == voice_gender.lower()
+    ]
+    return suitable_voices[0]['ShortName'] if suitable_voices else None
+
 @app.route('/upload', methods=['POST'])
 def handle_upload():
     try:
@@ -70,24 +78,15 @@ def handle_upload():
 
         # Start processing
         socketio.emit('progress', {'progress': 10, 'status': 'Processing file...'}, room=sid)
-        
+
         # Extract text
         file_ext = filename.rsplit('.', 1)[1].lower()
         text = extract_text(upload_path, file_ext)
 
         # Get suitable voice
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        voices = loop.run_until_complete(edge_tts.list_voices())
-        
-        suitable_voices = [
-            v for v in voices 
-            if v['Locale'].startswith(language.split('-')[0]) 
-            and v['Gender'].lower() == voice_gender.lower()
-        ]
-        if not suitable_voices:
+        voice = get_suitable_voice(language, voice_gender)
+        if not voice:
             return jsonify({'error': 'No suitable voice found'}), 400
-        voice = suitable_voices[0]['ShortName']
 
         # Generate output filename
         output_filename = f"{uuid.uuid4()}.mp3"
@@ -120,7 +119,7 @@ def handle_disconnect():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
-    
+    return render_template('index.html')  # ✅ Fix for index.html
+
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)
