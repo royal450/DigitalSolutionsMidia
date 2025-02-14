@@ -1,81 +1,114 @@
-35<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Royal Render</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
     <style>
-        :root {
-            --bg-dark: #1a1a1a;
-            --text-light: #f8f9fa;
-            --accent: #00b4d8;
-        }
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-light);
-            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
         }
-        .drop-zone {
-            border: 2px dashed var(--accent);
-            border-radius: 10px;
-            padding: 2rem;
-            transition: all 0.3s;
+
+        .upload-section, .tts-section {
+            margin: 20px;
         }
-        .drop-zone.dragover {
-            background-color: rgba(0, 180, 216, 0.1);
-        }
-        #progressBar {
-            transition: width 0.3s ease;
+
+        textarea {
+            width: 80%;
+            height: 100px;
         }
     </style>
 </head>
 <body>
-    <div class="container py-5">
-        <h1 class="text-center mb-5">🎨 Royal Render</h1>
-        
-        <!-- File Upload -->
-        <div class="drop-zone mb-5" id="dropZone">
-            <input type="file" id="fileInput" hidden accept=".pdf,.html,.txt">
-            <div class="text-center">
-                <p class="lead">Drag & drop files here or</p>
-                <button class="btn btn-outline-accent" onclick="document.getElementById('fileInput').click()">
-                    Browse Files
-                </button>
-            </div>
-        </div>
-
-        <!-- Controls -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <select id="voiceSelect" class="form-select bg-dark text-light"></select>
-            </div>
-        </div>
-
-        <!-- Progress -->
-        <div class="progress mb-4" style="height: 25px;">
-            <div id="progressBar" class="progress-bar bg-accent" role="progressbar" style="width: 0%"></div>
-        </div>
-
-        <!-- Results -->
-        <div id="results" class="d-none">
-            <div class="card bg-dark border-accent mb-3">
-                <div class="card-body">
-                    <pre id="extractedText" class="text-light"></pre>
-                </div>
-            </div>
-            <audio id="audioPlayer" controls class="w-100 mb-3"></audio>
-            <a id="downloadBtn" class="btn btn-accent w-100">Download MP3</a>
-        </div>
+    <h1>Royal Render - Text to Speech</h1>
+    
+    <div class="upload-section">
+        <input type="file" id="fileInput" />
+        <button onclick="uploadFile()">Upload</button>
     </div>
 
+    <div id="textContainer">
+        <h3>Extracted Text</h3>
+        <textarea id="textBox" rows="5" placeholder="Uploaded text will appear here..."></textarea>
+    </div>
 
+    <div class="tts-section">
+        <h3>Select Voice</h3>
+        <select id="voiceSelect"></select>
+        <button onclick="generateAudio()">Generate Audio</button>
+    </div>
 
+    <audio id="audioPlayer" controls style="display:none;"></audio>
 
-    <!-- Flask me static JS link karne ka sahi tarika -->
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-    
+    <script>
+        const socket = io.connect(window.location.origin);
+
+        function uploadFile() {
+            let fileInput = document.getElementById("fileInput");
+            if (fileInput.files.length === 0) {
+                alert("Please select a file!");
+                return;
+            }
+
+            let formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            fetch("/upload", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.text) {
+                    document.getElementById("textBox").value = data.text;
+                } else {
+                    alert("Error: " + data.error);
+                }
+            });
+        }
+
+        socket.on("text_extracted", data => {
+            document.getElementById("textBox").value = data.text;
+        });
+
+        socket.on("voices_available", voices => {
+            let voiceSelect = document.getElementById("voiceSelect");
+            voiceSelect.innerHTML = "";
+            voices.forEach(voice => {
+                let option = document.createElement("option");
+                option.value = voice;
+                option.textContent = voice;
+                voiceSelect.appendChild(option);
+            });
+        });
+
+        function generateAudio() {
+            let text = document.getElementById("textBox").value;
+            let voice = document.getElementById("voiceSelect").value;
+
+            fetch("/generate-audio", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: text, voice: voice })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.url) {
+                    let audioPlayer = document.getElementById("audioPlayer");
+                    audioPlayer.src = data.url;
+                    audioPlayer.style.display = "block";
+                } else {
+                    alert("Error: " + data.error);
+                }
+            });
+        }
+
+        socket.on("connect", () => {
+            console.log("Connected to server");
+        });
+    </script>
 </body>
-                        </html>
+            </html>
