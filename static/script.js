@@ -1,5 +1,7 @@
 
-const socket = io("http://127.0.0.1:5000");  // Flask Socket.IO Server
+
+
+const socket = io("https://digitalsolutionsmidia.onrender.com");
 const fileInput = document.getElementById("fileInput");
 const filePreview = document.getElementById("filePreview");
 const extractedTextContent = document.getElementById("extractedTextContent");
