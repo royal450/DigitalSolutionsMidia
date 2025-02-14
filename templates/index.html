@@ -11,9 +11,79 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-<link rel="stylesheet" href="style1.css" type="text/css" media="all" />
+    <style>
+        :root {
+            --neon-blue: #4dabf7;
+            --neon-purple: #9775fa;
+            --dark-bg: #0a192f;
+        }
 
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #0a192f 0%, #020c1b 100%);
+            color: #c3dafe;
+            min-height: 100vh;
+        }
 
+        /* Enhanced UI Elements */
+        .card {
+            backdrop-filter: blur(12px);
+            background-color: rgba(15, 23, 42, 0.8) !important;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-outline-primary {
+            transition: all 0.3s ease;
+            border-width: 2px;
+        }
+
+        /* Text Highlighting */
+        .highlight-word {
+            background-color: #ff0000 !important;
+            color: white !important;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+            border-radius: 3px;
+            padding: 2px 4px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Progress Bar */
+        #progressBar {
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a365d;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-blue);
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body class="antialiased">
     <!-- Main Container -->
@@ -179,15 +249,163 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
 
+<script>
+  let socket = io.connect("http://127.0.0.1:5000");
 
+  // 📌 Drag & Drop Handlers
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('fileInput');
 
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
+  });
 
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+  });
 
-   <!-- Flask में static files load करने के लिए ये करो -->
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-<script src="{{ url_for('static', filename='script.js') }}"></script> 
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+    const files = e.dataTransfer.files;
+    if (files.length) handleFile(files[0]);
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  // 📌 Handle File Upload & Processing
+  async function handleFile(file) {
+    if (!file) return;
+
+    const allowedTypes = ['application/pdf', 'text/html', 'text/plain'];
+    if (!allowedTypes.includes(file.type)) {
+      addLog('❌ Invalid file type!', 'error');
+      return;
+    }
+
+    document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      showProgress(true);
+      addLog('📤 Uploading file...', 'info');
+
+      const response = await fetch(`/upload?sid=${socket.id}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      addLog('✅ Conversion Complete!', 'success');
+      showAudioPlayer(data.mp3_file);
+      showTextPreview(data.extracted_text);
+    } catch (error) {
+      addLog(`❌ Error: ${error.message}`, 'error');
+    } finally {
+      showProgress(false);
+    }
+  }
+
+  // 📌 Real-time Progress Updates (Socket.IO)
+  socket.on("progress", (data) => {
+    updateProgress(data.progress);
+    addLog(data.status, "info");
+  });
+
+  // 📌 UI Functions
+  function addLog(message, type = 'info') {
+    const logEntry = document.createElement('div');
+    logEntry.className = `flex items-center text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
+
+    const icon = type === 'error' ? '❌' :
+      type === 'success' ? '✅' : 'ℹ️';
+
+    logEntry.innerHTML = `
+            <span class="mr-2">${icon}</span>
+            <span>${message}</span>
+        `;
+
+    document.getElementById('statusLogs').appendChild(logEntry);
+    document.getElementById('logContainer').scrollTop = document.getElementById('logContainer').scrollHeight;
+  }
+
+  function showProgress(show) {
+    document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
+  }
+
+  function updateProgress(percentage) {
+    document.getElementById('progressBar').style.width = `${percentage}%`;
+    document.getElementById('progressPercent').textContent = `${percentage}%`;
+  }
+
+  // 📌 Word Highlighting & Audio Sync
+  function highlightWords(text) {
+    const words = text.match(/[\w']+|[.,!?;”“"‘’]/g) || [];
+    const formatted = words.map(word => `<span class="word">${word}</span>`).join(' ');
+    document.getElementById('extractedTextContent').innerHTML = formatted;
+  }
+
+  function setupAudioSync() {
+    const audioElement = document.getElementById('audioElement');
+    const words = document.getElementsByClassName('word');
+    let currentWord = -1;
+
+    audioElement.addEventListener('loadedmetadata', () => {
+      audioElement.addEventListener('timeupdate', () => {
+        const currentTime = audioElement.currentTime;
+        const wordDuration = audioElement.duration / words.length;
+        const newIndex = Math.floor(currentTime / wordDuration);
+
+        if (newIndex !== currentWord && newIndex < words.length) {
+          Array.from(words).forEach(word =>
+            word.classList.remove('highlight-word'));
+          words[newIndex].classList.add('highlight-word');
+          currentWord = newIndex;
+
+          words[newIndex].scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+        }
+      });
+    });
+  }
+
+  function showTextPreview(text) {
+    document.getElementById('textPreview').style.display = 'block';
+    highlightWords(text);
+    setupAudioSync();
+
+    void document.getElementById('extractedTextContent').offsetWidth;
+    document.getElementById('extractedTextContent').classList.add('fade-in');
+  }
+
+  function showAudioPlayer(filename) {
+    const audioPlayer = document.getElementById('audioPlayer');
+    const audioElement = document.getElementById('audioElement');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    audioPlayer.style.display = 'block';
+    audioElement.src = `/output/${filename}`;
+    downloadBtn.disabled = false;
+    downloadBtn.onclick = () => {
+      const link = document.createElement('a');
+      link.href = audioElement.src;
+      link.download = filename;
+      link.click();
+    };
+  }
+</script>
+
 
 
 </body>
-</html>
-    
+    </html>
+                    
