@@ -1,114 +1,78 @@
-import os
-import uuid
-import asyncio
-from flask import Flask, jsonify, request, send_from_directory, render_template
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
-from PyPDF2 import PdfReader
-from bs4 import BeautifulSoup
+from flask_socketio import SocketIO, emit
+import os
+import pdfkit
+import PyPDF2
 import edge_tts
+import asyncio
 
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'output'
-ALLOWED_EXTENSIONS = {'pdf', 'html', 'txt'}
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "outputs"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# Fetch voices asynchronously
-voices = []
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-async def fetch_voices():
-    global voices
-    try:
-        voices = await edge_tts.list_voices()
-        print(f"Voices loaded: {len(voices)} available")
-    except Exception as e:
-        print(f"Error fetching voices: {e}")
-
-# Run voice fetching in event loop
-asyncio.run(fetch_voices())
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
+@socketio.on('upload_file')
+def handle_file(data):
+    file_data = data['file']
+    filename = data['filename']
     
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    if file and allowed_file(file.filename):
-        filename = str(uuid.uuid4()) + '_' + file.filename
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        try:
-            file.save(filepath)
-        except:
-            with open(filepath, 'w') as f:
-                f.write("Sample text: File upload failed, using placeholder text.")
-        
-        text = extract_text(filepath)
-        socketio.emit('text_extracted', {'text': text})
-        return jsonify({'message': 'File uploaded successfully', 'text': text})
-    
-    return jsonify({'error': 'Invalid file type'}), 400
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    with open(filepath, "wb") as f:
+        f.write(file_data)
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    emit('progress_update', {'progress': 50})  # 50% progress update
+
+    extracted_text = extract_text(filepath)
+    
+    emit('text_extracted', {'text': extracted_text})  # Real-time text update
+    emit('progress_update', {'progress': 100})  # 100% complete
 
 def extract_text(filepath):
-    ext = filepath.rsplit('.', 1)[1].lower()
-    try:
-        if ext == 'pdf':
-            reader = PdfReader(filepath)
-            return '\n'.join([page.extract_text() for page in reader.pages])
-        elif ext == 'html':
-            with open(filepath, 'r') as f:
-                soup = BeautifulSoup(f.read(), 'html.parser')
-                return soup.get_text()
-        elif ext == 'txt':
-            with open(filepath, 'r') as f:
-                return f.read()
-    except Exception as e:
-        return f"Error extracting text: {str(e)}"
+    text = ""
+    if filepath.endswith(".pdf"):
+        with open(filepath, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+    elif filepath.endswith(".html") or filepath.endswith(".txt") or filepath.endswith(".text"):
+        with open(filepath, "r", encoding="utf-8") as f:
+            text = f.read()
+    return text
 
-@app.route('/generate-audio', methods=['POST'])
-def generate_audio():
-    data = request.json
-    text = data.get('text')
-    voice = data.get('voice', 'en-US-GuyNeural')
+@socketio.on('convert_to_speech')
+def convert_to_speech(data):
+    text = data.get("text", "")
+    lang = data.get("language", "en-US")
+    voice = "en-US-JennyNeural" if data.get("voice") == "Female" else "en-US-GuyNeural"
     
     if not text:
-        return jsonify({'error': 'No text provided'}), 400
+        emit('audio_error', {"error": "No text provided"})
+        return
     
-    filename = f"{uuid.uuid4()}.mp3"
-    output_path = os.path.join(OUTPUT_FOLDER, filename)
+    output_path = os.path.join(OUTPUT_FOLDER, "output.mp3")
     
-    try:
-        communicate = edge_tts.Communicate(text, voice)
-        asyncio.run(communicate.save(output_path))  # Fix for async function
-        socketio.emit('audio_ready', {'url': f'/download/{filename}'})
-        return jsonify({'url': f'/download/{filename}'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    asyncio.run(generate_audio(text, voice, output_path))
+    
+    emit('audio_generated', {"audio_url": "/download_audio"})
 
-@app.route('/download/<filename>')
-def download_file(filename):
-    return send_from_directory(OUTPUT_FOLDER, filename, as_attachment=True)
+async def generate_audio(text, voice, output_path):
+    tts = edge_tts.Communicate(text, voice)
+    await tts.save(output_path)
+    emit('audio_chunk', {"status": "Audio processing completed!"})
 
-@socketio.on('connect')
-def handle_connect():
-    global voices
-    emit('voices_available', voices)  # अब पूरा वॉयस डेटा भेज रहा हूँ
-
-
-@app.route("/")
-def home():
-    return render_template("index.html")
+@app.route('/download_audio')
+def download_audio():
+    return send_file(os.path.join(OUTPUT_FOLDER, "output.mp3"), as_attachment=True)
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, port=5000)
