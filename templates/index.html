@@ -1,411 +1,76 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Royal Dev - PDF, HTML, Text to Speech</title>
-    
-    <!-- Styles & Fonts -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+    <title>Royal Render</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         :root {
-            --neon-blue: #4dabf7;
-            --neon-purple: #9775fa;
-            --dark-bg: #0a192f;
+            --bg-dark: #1a1a1a;
+            --text-light: #f8f9fa;
+            --accent: #00b4d8;
         }
-
         body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #0a192f 0%, #020c1b 100%);
-            color: #c3dafe;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
             min-height: 100vh;
         }
-
-        /* Enhanced UI Elements */
-        .card {
-            backdrop-filter: blur(12px);
-            background-color: rgba(15, 23, 42, 0.8) !important;
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        .drop-zone {
+            border: 2px dashed var(--accent);
+            border-radius: 10px;
+            padding: 2rem;
+            transition: all 0.3s;
         }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
+        .drop-zone.dragover {
+            background-color: rgba(0, 180, 216, 0.1);
         }
-
-        .btn-outline-primary {
-            transition: all 0.3s ease;
-            border-width: 2px;
-        }
-
-        /* Text Highlighting */
-        .highlight-word {
-            background-color: #ff0000 !important;
-            color: white !important;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
-            border-radius: 3px;
-            padding: 2px 4px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* Progress Bar */
         #progressBar {
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
-            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* Animations */
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #1a365d;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--neon-blue);
-            border-radius: 4px;
+            transition: width 0.3s ease;
         }
     </style>
 </head>
-<body class="antialiased">
-    <!-- Main Container -->
+<body>
     <div class="container py-5">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                
-               ROYAL RENDER
-                
-            </h1>
-            <p class="text-gray-400 mt-2">♥️ Browse Your File Dear ♥️</p>
-        </div>
-
-        <!-- File Upload Section -->
-        <div class="row justify-content-center mb-5">
-            <div class="col-md-8">
-                <div class="card border border-primary rounded-lg">
-                    <div class="card-body text-center p-5">
-                        <div id="drop-zone" 
-                             class="border-2 border-dashed border-blue-400 rounded-lg p-8 cursor-pointer transition-all hover:bg-opacity-10 hover:bg-blue-500">
-                            <i class="fas fa-file-upload fa-3x text-blue-400 mb-3"></i>
-                            <h3 class="text-lg font-semibold mb-2">Drag & Drop Files</h3>
-                            <p class="text-gray-600 text-sm mb-4">Supported formats: PDF, HTML, TXT , Text and Comming Soon....☺️</p>
-                            <input type="file" id="fileInput" class="hidden" accept=".pdf,.html,.txt,.text">
-                            <button onclick="document.getElementById('fileInput').click()" 
-                                    class="btn btn-outline-primary rounded-pill px-6">
-                                Browse Files
-                            </button>
-                            <div id="filePreview" class="mt-3 text-sm text-blue-300"></div>
-                        </div>
-                    </div>
-                </div>
+        <h1 class="text-center mb-5">🎨 Royal Render</h1>
+        
+        <!-- File Upload -->
+        <div class="drop-zone mb-5" id="dropZone">
+            <input type="file" id="fileInput" hidden accept=".pdf,.html,.txt">
+            <div class="text-center">
+                <p class="lead">Drag & drop files here or</p>
+                <button class="btn btn-outline-accent" onclick="document.getElementById('fileInput').click()">
+                    Browse Files
+                </button>
             </div>
         </div>
 
-
-
-
-
-
-<br />
-
-
-
-<!-- Language & Voice Selection -->
-<div class="row justify-content-center mb-4">
-    <div class="col-md-8">
-        <div class="card bg-dark border border-primary rounded-lg">
-            <div class="card-body">
-                <h5 class="text-blue-300 mb-3">Select Language & Voice</h5>
-
-                <!-- Language Dropdown -->
-                <div class="mb-3">
-                    <label class="text-blue-300 mb-1">Language</label>
-                    <select id="language" class="form-control bg-gray-900 text-white border-primary">
-                        <option value="en-US">English</option>
-                        <option value="hi-IN">Hindi</option>
-                        <option value="fr-FR">French</option>
-                        <option value="es-ES">Spanish</option>
-                        <option value="zh-CN">Chinese</option>
-                        <!-- और भी भाषाएँ जोड़ सकते हैं -->
-                    </select>
-                </div>
-
-                <!-- Voice Dropdown -->
-                <div class="mb-3">
-                    <label class="text-blue-300 mb-1">Voice</label>
-                    <select id="voice" class="form-control bg-gray-900 text-white border-primary">
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                </div>
+        <!-- Controls -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <select id="voiceSelect" class="form-select bg-dark text-light"></select>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- Progress & Status -->
-<div class="row justify-content-center mb-5">
-    <div class="col-md-8">
-        <div class="card bg-dark border border-primary rounded-lg">
-            <div class="card-body">
-                <!-- Progress Bar -->
-                <div id="progressContainer" class="mb-4" style="display: none;">
-                    <div class="flex justify-between mb-2">
-                        <span class="text-sm text-blue-300">Processing...</span>
-                        <span id="progressPercent" class="text-sm text-blue-300">0%</span>
-                    </div>
-                    <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <div id="progressBar" 
-                             class="h-full bg-gradient-to-r from-blue-400 to-purple-500"
-                             style="width: 0%"></div>
-                    </div>
-                </div>
-
-                <!-- Live Logs -->
-                <div id="logContainer" class="bg-gray-900 rounded-lg p-3 h-40 overflow-y-auto">
-                    <div id="statusLogs" class="space-y-2"></div>
-                </div>
-            </div>
+        <!-- Progress -->
+        <div class="progress mb-4" style="height: 25px;">
+            <div id="progressBar" class="progress-bar bg-accent" role="progressbar" style="width: 0%"></div>
         </div>
-    </div>
-</div>
-    
-    
-    
-    
-    
-    
-    
-    
-        <!-- Extracted Text & Audio Player -->
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <!-- Extracted Text -->
-                <div id="textPreview" 
-                     class="card bg-dark border border-primary rounded-lg mb-4"
-                     style="display: none;">
-                    <div class="card-body">
-                        <h3 class="text-lg font-semibold mb-3">Extracted Text</h3>
-                        <div id="extractedTextContent"
-                             class="h-64 overflow-y-auto p-3 bg-gray-900 rounded-lg text-gray-300">
-                        </div>
-                    </div>
-                </div>
 
-             
-             
-
-
-
-
-
-
-
-
-
-
-
-   <!-- Audio Player -->
-                <div id="audioPlayer" class="card bg-dark border border-primary rounded-lg" style="display: none;">
-                    <div class="card-body">
-                        <h3 class="text-lg font-semibold mb-3">Generated Audio</h3>
-                        <div class="flex items-center justify-between">
-                            <audio id="audioElement" controls class="flex-1 mr-4">
-                                Your browser does not support the audio element.
-                            </audio>
-                            <button id="downloadBtn" 
-                                    class="btn btn-outline-success rounded-pill px-4"
-                                    disabled>
-                                <i class="fas fa-download mr-2"></i>Download MP3
-                            </button>
-                        </div>
-                    </div>
+        <!-- Results -->
+        <div id="results" class="d-none">
+            <div class="card bg-dark border-accent mb-3">
+                <div class="card-body">
+                    <pre id="extractedText" class="text-light"></pre>
                 </div>
             </div>
+            <audio id="audioPlayer" controls class="w-100 mb-3"></audio>
+            <a id="downloadBtn" class="btn btn-accent w-100">Download MP3</a>
         </div>
     </div>
 
-
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
-
-<script>
-  let socket = io.connect("http://127.0.0.1:5000");
-
-  // 📌 Drag & Drop Handlers
-  const dropZone = document.getElementById('drop-zone');
-  const fileInput = document.getElementById('fileInput');
-
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
-  });
-
-  dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
-  });
-
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
-    const files = e.dataTransfer.files;
-    if (files.length) handleFile(files[0]);
-  });
-
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length) handleFile(e.target.files[0]);
-  });
-
-  // 📌 Handle File Upload & Processing
-  async function handleFile(file) {
-    if (!file) return;
-
-    const allowedTypes = ['application/pdf', 'text/html', 'text/plain'];
-    if (!allowedTypes.includes(file.type)) {
-      addLog('❌ Invalid file type!', 'error');
-      return;
-    }
-
-    document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      showProgress(true);
-      addLog('📤 Uploading file...', 'info');
-
-      const response = await fetch(`/upload?sid=${socket.id}`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-
-      addLog('✅ Conversion Complete!', 'success');
-      showAudioPlayer(data.mp3_file);
-      showTextPreview(data.extracted_text);
-    } catch (error) {
-      addLog(`❌ Error: ${error.message}`, 'error');
-    } finally {
-      showProgress(false);
-    }
-  }
-
-  // 📌 Real-time Progress Updates (Socket.IO)
-  socket.on("progress", (data) => {
-    updateProgress(data.progress);
-    addLog(data.status, "info");
-  });
-
-  // 📌 UI Functions
-  function addLog(message, type = 'info') {
-    const logEntry = document.createElement('div');
-    logEntry.className = `flex items-center text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
-
-    const icon = type === 'error' ? '❌' :
-      type === 'success' ? '✅' : 'ℹ️';
-
-    logEntry.innerHTML = `
-            <span class="mr-2">${icon}</span>
-            <span>${message}</span>
-        `;
-
-    document.getElementById('statusLogs').appendChild(logEntry);
-    document.getElementById('logContainer').scrollTop = document.getElementById('logContainer').scrollHeight;
-  }
-
-  function showProgress(show) {
-    document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
-  }
-
-  function updateProgress(percentage) {
-    document.getElementById('progressBar').style.width = `${percentage}%`;
-    document.getElementById('progressPercent').textContent = `${percentage}%`;
-  }
-
-  // 📌 Word Highlighting & Audio Sync
-  function highlightWords(text) {
-    const words = text.match(/[\w']+|[.,!?;”“"‘’]/g) || [];
-    const formatted = words.map(word => `<span class="word">${word}</span>`).join(' ');
-    document.getElementById('extractedTextContent').innerHTML = formatted;
-  }
-
-  function setupAudioSync() {
-    const audioElement = document.getElementById('audioElement');
-    const words = document.getElementsByClassName('word');
-    let currentWord = -1;
-
-    audioElement.addEventListener('loadedmetadata', () => {
-      audioElement.addEventListener('timeupdate', () => {
-        const currentTime = audioElement.currentTime;
-        const wordDuration = audioElement.duration / words.length;
-        const newIndex = Math.floor(currentTime / wordDuration);
-
-        if (newIndex !== currentWord && newIndex < words.length) {
-          Array.from(words).forEach(word =>
-            word.classList.remove('highlight-word'));
-          words[newIndex].classList.add('highlight-word');
-          currentWord = newIndex;
-
-          words[newIndex].scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-        }
-      });
-    });
-  }
-
-  function showTextPreview(text) {
-    document.getElementById('textPreview').style.display = 'block';
-    highlightWords(text);
-    setupAudioSync();
-
-    void document.getElementById('extractedTextContent').offsetWidth;
-    document.getElementById('extractedTextContent').classList.add('fade-in');
-  }
-
-  function showAudioPlayer(filename) {
-    const audioPlayer = document.getElementById('audioPlayer');
-    const audioElement = document.getElementById('audioElement');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    audioPlayer.style.display = 'block';
-    audioElement.src = `/output/${filename}`;
-    downloadBtn.disabled = false;
-    downloadBtn.onclick = () => {
-      const link = document.createElement('a');
-      link.href = audioElement.src;
-      link.download = filename;
-      link.click();
-    };
-  }
-</script>
-
-
-
+    <script src="script.js"></script>
 </body>
-    </html>
-    
+                        </html>
