@@ -238,9 +238,11 @@ socket.on("audio_generated", function (data) {
 
 
 
-    
+   <!-- Flask में static files load करने के लिए ये करो -->
+<link rel="stylesheet" href="{{ url_for('static', filename='style1.css') }}">
+<script src="{{ url_for('static', filename='script.js') }}"></script> 
 
 
 </body>
-                                                                  </html>
+</html>
     
