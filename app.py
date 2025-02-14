@@ -1,12 +1,14 @@
 # app.py (Backend)
 import os
 import uuid
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory , render_template
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 import edge_tts
+
+
 
 app = Flask(__name__)
 CORS(app)
@@ -97,6 +99,12 @@ def download_file(filename):
 @socketio.on('connect')
 def handle_connect():
     emit('voices_available', [v.shortname for v in voices])
+
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+    
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
