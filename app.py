@@ -1,90 +1,105 @@
 import os
-import pdfkit
-import asyncio
-import edge_tts
+import shutil
 from flask import Flask, request, jsonify, render_template, send_from_directory
-from flask_cors import CORS
 from flask_socketio import SocketIO
-from PyPDF2 import PdfReader
-from bs4 import BeautifulSoup
+from werkzeug.utils import secure_filename
+import edge_tts
+import fitz  # PyMuPDF for PDF text extraction
+import asyncio
 
 app = Flask(__name__)
-CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-UPLOAD_FOLDER = "static/uploads"
-OUTPUT_FOLDER = "static/output"
+UPLOAD_FOLDER = 'uploads'
+AUDIO_FOLDER = 'output'
+ALLOWED_EXTENSIONS = {'pdf', 'txt', 'html'}
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['AUDIO_FOLDER'] = AUDIO_FOLDER
+
+# Ensure upload and output folders exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
-# Real-time progress updates
-def update_progress(sid, progress, status):
-    socketio.emit("progress", {"progress": progress, "status": status}, room=sid)
+# Utility function to check file extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Extract text from file
-def extract_text(file_path):
-    text = ""
-    if file_path.endswith(".pdf"):
-        with open(file_path, "rb") as f:
-            reader = PdfReader(f)
-            text = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
-    elif file_path.endswith(".html"):
-        with open(file_path, "r", encoding="utf-8") as f:
-            soup = BeautifulSoup(f, "html.parser")
-            text = soup.get_text()
-    elif file_path.endswith(".txt"):
-        with open(file_path, "r", encoding="utf-8") as f:
-            text = f.read()
-    return text.strip()
-
-# Convert text to speech
-async def text_to_speech(text, lang, voice, output_path):
-    communicate = edge_tts.Communicate(text, voice, rate="+0%", volume="+0%", pitch="+0%", lang=lang)
-    await communicate.save(output_path)
-
-# File upload API
-@app.route("/upload", methods=["POST"])
-def upload_file():
-    sid = request.args.get("sid")
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded!"})
-    
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "No file selected!"})
-    
-    filename = file.filename
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(file_path)
-
-    update_progress(sid, 20, "🔍 Extracting text...")
-    extracted_text = extract_text(file_path)
-    if not extracted_text:
-        return jsonify({"error": "Failed to extract text!"})
-
-    update_progress(sid, 50, "🎙 Generating speech...")
-    output_mp3 = f"{os.path.splitext(filename)[0]}.mp3"
-    output_path = os.path.join(OUTPUT_FOLDER, output_mp3)
-
-    lang = request.form.get("language", "en-US")
-    voice = request.form.get("voice", "en-US-JennyNeural")
-    
-    asyncio.run(text_to_speech(extracted_text, lang, voice, output_path))
-
-    update_progress(sid, 100, "✅ Done!")
-
-    return jsonify({"mp3_file": output_mp3, "extracted_text": extracted_text})
-
-# Serve MP3 files
-@app.route("/output/<filename>")
-def serve_audio(filename):
-    return send_from_directory(OUTPUT_FOLDER, filename)
-
-# Serve the frontend
-@app.route("/")
+# Route for the main UI
+@app.route('/')
 def index():
-    return render_template("index.html")
+    return render_template('index.html')
 
-# Run Flask app with SocketIO
-if __name__ == "__main__":
-    socketio.run(app, debug=True)
+# File upload route
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+        
+        # Extract text
+        extracted_text = extract_text(file_path, filename)
+        
+        return jsonify({"message": "File uploaded successfully", "text": extracted_text}), 200
+
+    return jsonify({"error": "Invalid file format"}), 400
+
+# Function to extract text from different file formats
+def extract_text(file_path, filename):
+    text = ""
+    
+    if filename.endswith(".pdf"):
+        try:
+            doc = fitz.open(file_path)
+            for page in doc:
+                text += page.get_text("text") + "\n"
+        except Exception as e:
+            return f"Error extracting text: {str(e)}"
+
+    elif filename.endswith(".txt") or filename.endswith(".html"):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                text = file.read()
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+
+    return text
+
+# TTS Route (Generate Audio from Text)
+@app.route('/generate-audio', methods=['POST'])
+async def generate_audio():
+    data = request.json
+    text = data.get("text", "")
+    language = data.get("language", "en-US")
+    voice = "en-US-AriaNeural" if data.get("voice") == "Female" else "en-US-GuyNeural"
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    audio_filename = "output.mp3"
+    audio_path = os.path.join(app.config['AUDIO_FOLDER'], audio_filename)
+
+    try:
+        tts = edge_tts.Communicate(text, voice)
+        await tts.save(audio_path)
+        return jsonify({"message": "Audio generated successfully", "audio_url": f"/output/{audio_filename}"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Serve generated audio files
+@app.route('/output/<filename>')
+def serve_audio(filename):
+    return send_from_directory(app.config['AUDIO_FOLDER'], filename)
+
+# Run Flask app with Socket.IO
+if __name__ == '__main__':
+    socketio.run(app, debug=True, port=5000)
