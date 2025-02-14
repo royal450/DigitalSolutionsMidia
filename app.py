@@ -1,143 +1,90 @@
 import os
-import json
-import shutil
+import pdfkit
 import asyncio
 import edge_tts
-import requests
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit
-from werkzeug.utils import secure_filename
+from flask_socketio import SocketIO
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 
-# 📌 Flask App Initialization
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = "uploads"
-app.config['OUTPUT_FOLDER'] = "output"
-app.config['SECRET_KEY'] = "your_secret_key"
-
-# 📌 Ensure Directories Exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
-
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# 📌 Allowed Extensions
-ALLOWED_EXTENSIONS = {'pdf', 'txt', 'html'}
-LANGUAGE_VOICE_MAPPING = {
-    "en-US": {"Male": "en-US-GuyNeural", "Female": "en-US-JennyNeural"},
-    "hi-IN": {"Male": "hi-IN-MadhurNeural", "Female": "hi-IN-SwaraNeural"},
-    "fr-FR": {"Male": "fr-FR-HenriNeural", "Female": "fr-FR-DeniseNeural"},
-    "es-ES": {"Male": "es-ES-AlvaroNeural", "Female": "es-ES-ElviraNeural"},
-    "zh-CN": {"Male": "zh-CN-YunyangNeural", "Female": "zh-CN-XiaoxiaoNeural"}
-}
+UPLOAD_FOLDER = "static/uploads"
+OUTPUT_FOLDER = "static/output"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 📌 Function to Check Allowed File Type
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Real-time progress updates
+def update_progress(sid, progress, status):
+    socketio.emit("progress", {"progress": progress, "status": status}, room=sid)
 
-# 📌 Function to Extract Text from PDF
-def extract_text_from_pdf(pdf_path):
-    reader = PdfReader(pdf_path)
-    return " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+# Extract text from file
+def extract_text(file_path):
+    text = ""
+    if file_path.endswith(".pdf"):
+        with open(file_path, "rb") as f:
+            reader = PdfReader(f)
+            text = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    elif file_path.endswith(".html"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "html.parser")
+            text = soup.get_text()
+    elif file_path.endswith(".txt"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            text = f.read()
+    return text.strip()
 
-# 📌 Function to Extract Text from HTML
-def extract_text_from_html(html_path):
-    with open(html_path, "r", encoding="utf-8") as f:
-        soup = BeautifulSoup(f, "html.parser")
-        return soup.get_text()
+# Convert text to speech
+async def text_to_speech(text, lang, voice, output_path):
+    communicate = edge_tts.Communicate(text, voice, rate="+0%", volume="+0%", pitch="+0%", lang=lang)
+    await communicate.save(output_path)
 
-# 📌 Function to Extract Text from TXT
-def extract_text_from_txt(txt_path):
-    with open(txt_path, "r", encoding="utf-8") as f:
-        return f.read()
-
-# 📌 Function to Generate Audio with Edge TTS
-async def generate_audio(text, lang, voice, output_path):
-    voice_id = LANGUAGE_VOICE_MAPPING.get(lang, {}).get(voice, "en-US-JennyNeural")
-    
-    try:
-        print(f"🔹 Generating audio at: {output_path}")
-        tts = edge_tts.Communicate(text, voice=voice_id)
-        await tts.save(output_path)
-        print(f"✅ Audio saved successfully at: {output_path}")
-    except Exception as e:
-        print(f"❌ Error generating audio: {e}")
-
-# 📌 Handle File Upload
+# File upload API
 @app.route("/upload", methods=["POST"])
 def upload_file():
+    sid = request.args.get("sid")
     if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
+        return jsonify({"error": "No file uploaded!"})
+    
     file = request.files["file"]
     if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
+        return jsonify({"error": "No file selected!"})
+    
+    filename = file.filename
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(file_path)
 
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
+    update_progress(sid, 20, "🔍 Extracting text...")
+    extracted_text = extract_text(file_path)
+    if not extracted_text:
+        return jsonify({"error": "Failed to extract text!"})
 
-        extracted_text = ""
-        if filename.endswith(".pdf"):
-            extracted_text = extract_text_from_pdf(file_path)
-        elif filename.endswith(".html"):
-            extracted_text = extract_text_from_html(file_path)
-        elif filename.endswith(".txt"):
-            extracted_text = extract_text_from_txt(file_path)
+    update_progress(sid, 50, "🎙 Generating speech...")
+    output_mp3 = f"{os.path.splitext(filename)[0]}.mp3"
+    output_path = os.path.join(OUTPUT_FOLDER, output_mp3)
 
-        output_audio_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{os.path.splitext(filename)[0]}.mp3")
+    lang = request.form.get("language", "en-US")
+    voice = request.form.get("voice", "en-US-JennyNeural")
+    
+    asyncio.run(text_to_speech(extracted_text, lang, voice, output_path))
 
-        # 📌 Generate Audio in Background
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(generate_audio(extracted_text, "en-US", "Female", output_audio_path))
+    update_progress(sid, 100, "✅ Done!")
 
-        # Send the data to frontend with SocketIO
-        socketio.emit("update_data", {
-            "extracted_text": extracted_text,
-            "mp3_file": os.path.basename(output_audio_path)
-        }, broadcast=True)
+    return jsonify({"mp3_file": output_mp3, "extracted_text": extracted_text})
 
-        return jsonify({
-            "extracted_text": extracted_text,
-            "mp3_file": os.path.basename(output_audio_path)
-        })
-
-    return jsonify({"error": "Invalid file type"}), 400
-
-# 📌 Serve Generated Audio Files
+# Serve MP3 files
 @app.route("/output/<filename>")
 def serve_audio(filename):
-    return send_from_directory(app.config['OUTPUT_FOLDER'], filename, mimetype="audio/mpeg")
+    return send_from_directory(OUTPUT_FOLDER, filename)
 
-# 📌 Handle Real-Time Language & Voice Update
-@socketio.on("update_language_voice")
-def update_language_voice(data):
-    lang = data.get("language", "en-US")
-    voice = data.get("voice", "Female")
-    socketio.emit("update_data", {"language": lang, "voice": voice}, broadcast=True)
-
-    # Send highlighted text & generated audio file to all clients
-    if 'extracted_text' in data and 'mp3_file' in data:
-        socketio.emit("update_data", {
-            "extracted_text": data["extracted_text"],
-            "mp3_file": data["mp3_file"]
-        }, broadcast=True)
-
-# 📌 Handle Real-Time Text Highlighting & Audio Sync
-@socketio.on("sync_audio_highlight")
-def sync_audio_highlight(data):
-    socketio.emit("highlight_word", data, broadcast=True)
-
-# 📌 Serve index.html
+# Serve the frontend
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# 📌 Run Flask App
+# Run Flask app with SocketIO
 if __name__ == "__main__":
     socketio.run(app, debug=True)
