@@ -1,6 +1,6 @@
 import os
-import uuid
 import asyncio
+import uuid
 import PyPDF2
 import edge_tts
 from bs4 import BeautifulSoup
@@ -12,47 +12,49 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-UPLOAD_FOLDER = 'static/uploads'
-OUTPUT_FOLDER = 'static/output'
+UPLOAD_FOLDER = "static/uploads"
+OUTPUT_FOLDER = "static/output"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 📌 PDF से टेक्स्ट निकालने का फंक्शन
+# Extract text from PDF
 def extract_text_from_pdf(file_path):
     text = ""
     with open(file_path, "rb") as pdf_file:
         reader = PyPDF2.PdfReader(pdf_file)
         for page in reader.pages:
-            text += (page.extract_text() or "") + "\n"
+            page_text = page.extract_text() or ""
+            text += page_text + "\n"
     return text.strip() if text else "No text found"
 
-# 📌 HTML से टेक्स्ट निकालने का फंक्शन
+# Extract text from HTML
 def extract_text_from_html(file_path):
     with open(file_path, "r", encoding="utf-8") as html_file:
         soup = BeautifulSoup(html_file, "html.parser")
         return soup.get_text(separator=" ").strip()
 
-# 📌 Edge-TTS से स्पीच जनरेट करने का async फंक्शन
+# Generate speech using edge-tts (Async)
 async def generate_speech(text, lang, gender, filename):
     voice_map = {
         "Male": "en-US-GuyNeural",
         "Female": "en-US-JennyNeural"
     }
     voice = voice_map.get(gender, "en-US-JennyNeural")
+
     output_path = os.path.join(OUTPUT_FOLDER, filename)
 
     try:
-        communicate = edge_tts.Communicate(text, voice)
-        await communicate.save(output_path)
+        tts = edge_tts.Communicate(text, voice)
+        await tts.save(output_path)
 
-        # 🎯 जब ऑडियो तैयार हो जाए, तो फ्रंटेंड को अपडेट भेजें
+        # Emit event to frontend when file is ready
         socketio.emit("audio_ready", {
             "mp3_url": url_for("serve_output", filename=filename, _external=True)
         })
     except Exception as e:
         print(f"Error generating speech: {e}")
 
-# 📌 फ़ाइल अपलोड API
+# File Upload Route
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -67,7 +69,7 @@ def upload_file():
     file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
     file.save(file_path)
 
-    # 📌 फ़ाइल के प्रकार के आधार पर टेक्स्ट निकालें
+    # Extract text based on file type
     if file.filename.endswith(".pdf"):
         extracted_text = extract_text_from_pdf(file_path)
     elif file.filename.endswith(".html"):
@@ -85,24 +87,24 @@ def upload_file():
     gender = request.args.get("gender", "Female")
     mp3_filename = unique_filename.rsplit(".", 1)[0] + ".mp3"
 
-    # 🎯 बैकग्राउंड में async टास्क चलाएं
-    socketio.start_background_task(lambda: asyncio.run(generate_speech(extracted_text, lang, gender, mp3_filename)))
+    # Run speech generation in a background task (Async)
+    asyncio.create_task(generate_speech(extracted_text, lang, gender, mp3_filename))
 
     return jsonify({
         "extracted_text": extracted_text,
         "mp3_file": url_for("serve_output", filename=mp3_filename, _external=True)
     })
 
-# 📌 ऑडियो फ़ाइल सर्व करने का API
+# Serve audio files
 @app.route("/output/<filename>")
 def serve_output(filename):
     return send_from_directory(OUTPUT_FOLDER, filename)
 
-# 📌 मेन पेज लोड करने का API
+# Main Route
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# 📌 Flask-SocketIO सर्वर रन करें
+# Start Flask App
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, use_reloader=False)
