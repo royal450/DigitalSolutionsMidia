@@ -36,8 +36,24 @@
     </div>
 
     <div class="tts-section">
+        <h3>Select Language</h3>
+        <select id="languageSelect">
+            <option value="en-US">English (US)</option>
+            <option value="hi-IN">Hindi (India)</option>
+            <option value="es-ES">Spanish (Spain)</option>
+            <option value="fr-FR">French</option>
+            <option value="de-DE">German</option>
+        </select>
+
+        <h3>Select Gender</h3>
+        <select id="genderSelect">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+        </select>
+
         <h3>Select Voice</h3>
         <select id="voiceSelect"></select>
+
         <button onclick="generateAudio()">Generate Audio</button>
     </div>
 
@@ -45,6 +61,7 @@
 
     <script>
         const socket = io.connect(window.location.origin);
+        let allVoices = [];
 
         function uploadFile() {
             let fileInput = document.getElementById("fileInput");
@@ -75,15 +92,31 @@
         });
 
         socket.on("voices_available", voices => {
+            allVoices = voices;
+            updateVoiceOptions();
+        });
+
+        function updateVoiceOptions() {
+            let language = document.getElementById("languageSelect").value;
+            let gender = document.getElementById("genderSelect").value;
             let voiceSelect = document.getElementById("voiceSelect");
             voiceSelect.innerHTML = "";
-            voices.forEach(voice => {
+
+            let filteredVoices = allVoices.filter(v => 
+                v.Locale.startsWith(language) && 
+                (gender === "male" ? v.Gender === "Male" : v.Gender === "Female")
+            );
+
+            filteredVoices.forEach(voice => {
                 let option = document.createElement("option");
-                option.value = voice;
-                option.textContent = voice;
+                option.value = voice.ShortName;
+                option.textContent = voice.ShortName;
                 voiceSelect.appendChild(option);
             });
-        });
+        }
+
+        document.getElementById("languageSelect").addEventListener("change", updateVoiceOptions);
+        document.getElementById("genderSelect").addEventListener("change", updateVoiceOptions);
 
         function generateAudio() {
             let text = document.getElementById("textBox").value;
@@ -111,4 +144,4 @@
         });
     </script>
 </body>
-            </html>
+</html>
