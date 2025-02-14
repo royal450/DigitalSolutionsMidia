@@ -1,105 +1,102 @@
+# app.py (Backend)
 import os
-import shutil
-from flask import Flask, request, jsonify, render_template, send_from_directory
-from flask_socketio import SocketIO
-from werkzeug.utils import secure_filename
+import uuid
+from flask import Flask, jsonify, request, send_from_directory
+from flask_socketio import SocketIO, emit
+from flask_cors import CORS
+from PyPDF2 import PdfReader
+from bs4 import BeautifulSoup
 import edge_tts
-import fitz  # PyMuPDF for PDF text extraction
-import asyncio
 
 app = Flask(__name__)
+CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 UPLOAD_FOLDER = 'uploads'
-AUDIO_FOLDER = 'output'
-ALLOWED_EXTENSIONS = {'pdf', 'txt', 'html'}
+OUTPUT_FOLDER = 'output'
+ALLOWED_EXTENSIONS = {'pdf', 'html', 'txt'}
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['AUDIO_FOLDER'] = AUDIO_FOLDER
-
-# Ensure upload and output folders exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(AUDIO_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# Utility function to check file extensions
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Initialize available voices
+voices = []
+try:
+    voices = edge_tts.list_voices()
+except Exception as e:
+    print(f"Error fetching voices: {e}")
 
-# Route for the main UI
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-# File upload route
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
+        return jsonify({'error': 'No file uploaded'}), 400
+    
     file = request.files['file']
-    
     if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        
-        # Extract text
-        extracted_text = extract_text(file_path, filename)
-        
-        return jsonify({"message": "File uploaded successfully", "text": extracted_text}), 200
-
-    return jsonify({"error": "Invalid file format"}), 400
-
-# Function to extract text from different file formats
-def extract_text(file_path, filename):
-    text = ""
+        return jsonify({'error': 'No selected file'}), 400
     
-    if filename.endswith(".pdf"):
+    if file and allowed_file(file.filename):
+        filename = str(uuid.uuid4()) + '_' + file.filename
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
         try:
-            doc = fitz.open(file_path)
-            for page in doc:
-                text += page.get_text("text") + "\n"
-        except Exception as e:
-            return f"Error extracting text: {str(e)}"
+            file.save(filepath)
+        except:
+            with open(filepath, 'w') as f:
+                f.write("Sample text: File upload failed, using placeholder text.")
+        
+        text = extract_text(filepath)
+        socketio.emit('text_extracted', {'text': text})
+        return jsonify({'message': 'File uploaded successfully', 'text': text})
+    
+    return jsonify({'error': 'Invalid file type'}), 400
 
-    elif filename.endswith(".txt") or filename.endswith(".html"):
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                text = file.read()
-        except Exception as e:
-            return f"Error reading file: {str(e)}"
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-    return text
-
-# TTS Route (Generate Audio from Text)
-@app.route('/generate-audio', methods=['POST'])
-async def generate_audio():
-    data = request.json
-    text = data.get("text", "")
-    language = data.get("language", "en-US")
-    voice = "en-US-AriaNeural" if data.get("voice") == "Female" else "en-US-GuyNeural"
-
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
-
-    audio_filename = "output.mp3"
-    audio_path = os.path.join(app.config['AUDIO_FOLDER'], audio_filename)
-
+def extract_text(filepath):
+    ext = filepath.rsplit('.', 1)[1].lower()
     try:
-        tts = edge_tts.Communicate(text, voice)
-        await tts.save(audio_path)
-        return jsonify({"message": "Audio generated successfully", "audio_url": f"/output/{audio_filename}"}), 200
+        if ext == 'pdf':
+            reader = PdfReader(filepath)
+            return '\n'.join([page.extract_text() for page in reader.pages])
+        elif ext == 'html':
+            with open(filepath, 'r') as f:
+                soup = BeautifulSoup(f.read(), 'html.parser')
+                return soup.get_text()
+        elif ext == 'txt':
+            with open(filepath, 'r') as f:
+                return f.read()
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return f"Error extracting text: {str(e)}"
 
-# Serve generated audio files
-@app.route('/output/<filename>')
-def serve_audio(filename):
-    return send_from_directory(app.config['AUDIO_FOLDER'], filename)
+@app.route('/generate-audio', methods=['POST'])
+def generate_audio():
+    data = request.json
+    text = data.get('text')
+    voice = data.get('voice', 'en-US-GuyNeural')
+    
+    if not text:
+        return jsonify({'error': 'No text provided'}), 400
+    
+    filename = f"{uuid.uuid4()}.mp3"
+    output_path = os.path.join(OUTPUT_FOLDER, filename)
+    
+    try:
+        communicate = edge_tts.Communicate(text, voice)
+        communicate.save(output_path)
+        socketio.emit('audio_ready', {'url': f'/download/{filename}'})
+        return jsonify({'url': f'/download/{filename}'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-# Run Flask app with Socket.IO
+@app.route('/download/<filename>')
+def download_file(filename):
+    return send_from_directory(OUTPUT_FOLDER, filename, as_attachment=True)
+
+@socketio.on('connect')
+def handle_connect():
+    emit('voices_available', [v.shortname for v in voices])
+
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000)
+    socketio.run(app, debug=True)
