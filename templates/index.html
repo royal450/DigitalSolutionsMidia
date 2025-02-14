@@ -1,4 +1,4 @@
-<!-- index.html -->
+35<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,6 +71,11 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+
+
+
+    <!-- Flask me static JS link karne ka sahi tarika -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    
 </body>
                         </html>
