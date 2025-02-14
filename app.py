@@ -102,7 +102,9 @@ def download_file(filename):
 
 @socketio.on('connect')
 def handle_connect():
-    emit('voices_available', [v.shortname for v in voices])
+    global voices
+    emit('voices_available', voices)  # अब पूरा वॉयस डेटा भेज रहा हूँ
+
 
 @app.route("/")
 def home():
