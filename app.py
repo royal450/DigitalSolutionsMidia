@@ -4,7 +4,7 @@ import uuid
 import PyPDF2
 import edge_tts
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, jsonify, send_from_directory, url_for
+from flask import Flask, render_template, request, send_from_directory, url_for
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
@@ -14,8 +14,15 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 UPLOAD_FOLDER = "static/uploads"
 OUTPUT_FOLDER = "static/output"
+STATUS_FILE = "static/status.txt"
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+# Function to update status.txt
+def update_status(text):
+    with open(STATUS_FILE, "w", encoding="utf-8") as f:
+        f.write(text)
 
 # Extract text from PDF
 def extract_text_from_pdf(file_path):
@@ -40,10 +47,10 @@ async def generate_speech(text, lang, gender, filename):
         "Female": "en-US-JennyNeural"
     }
     voice = voice_map.get(gender, "en-US-JennyNeural")
-
     output_path = os.path.join(OUTPUT_FOLDER, filename)
 
     try:
+        update_status("Generating speech...")
         tts = edge_tts.Communicate(text, voice)
         await tts.save(output_path)
 
@@ -51,18 +58,23 @@ async def generate_speech(text, lang, gender, filename):
         socketio.emit("audio_ready", {
             "mp3_url": url_for("serve_output", filename=filename, _external=True)
         })
+
+        update_status(f"Done! Audio ready: {filename}")
+
     except Exception as e:
-        print(f"Error generating speech: {e}")
+        update_status(f"Error generating speech: {e}")
 
 # File Upload Route
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        update_status("Error: No file uploaded")
+        return "Error: No file uploaded", 400
 
     file = request.files["file"]
     if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
+        update_status("Error: No selected file")
+        return "Error: No selected file", 400
 
     file_ext = file.filename.rsplit(".", 1)[-1]
     unique_filename = f"{uuid.uuid4()}.{file_ext}"
@@ -78,22 +90,28 @@ def upload_file():
         with open(file_path, "r", encoding="utf-8") as txt_file:
             extracted_text = txt_file.read()
     else:
-        return jsonify({"error": "Unsupported file type"}), 400
+        update_status("Error: Unsupported file type")
+        return "Error: Unsupported file type", 400
 
     if not extracted_text:
-        return jsonify({"error": "No text found in file"}), 400
+        update_status("Error: No text found in file")
+        return "Error: No text found in file", 400
 
     lang = request.args.get("lang", "en-US")
     gender = request.args.get("gender", "Female")
     mp3_filename = unique_filename.rsplit(".", 1)[0] + ".mp3"
 
-    # Run speech generation in a background task (Async)
+    # Save status before running async task
+    update_status("Processing text-to-speech...")
+
     asyncio.create_task(generate_speech(extracted_text, lang, gender, mp3_filename))
 
-    return jsonify({
-        "extracted_text": extracted_text,
-        "mp3_file": url_for("serve_output", filename=mp3_filename, _external=True)
-    })
+    return "Processing Started", 202
+
+# Serve status file
+@app.route("/status")
+def get_status():
+    return send_from_directory("static", "status.txt")
 
 # Serve audio files
 @app.route("/output/<filename>")
