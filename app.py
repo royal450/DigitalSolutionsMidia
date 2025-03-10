@@ -22,66 +22,45 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 AUDIO_PATH = os.path.join(os.getcwd(), "audio_files")
 os.makedirs(AUDIO_PATH, exist_ok=True)
 
-# Rate Limiting Setup
-request_counts = defaultdict(lambda: {"count": 0, "time": 0})
-MAX_REQUESTS = 5  # Max 5 requests per minute
-TIME_WINDOW = 60   # 60 seconds per window
-RATE_LIMIT_RESET = 3600  # 1-hour reset time
+# Rate Limiting Setup (In-Memory)
+request_counts = defaultdict(lambda: {"count": 0, "time": time.time()})
+MAX_REQUESTS = 5  # 1 घंटे में 5 कॉल अलाउड
+RATE_LIMIT_RESET = 3600  # 1 घंटे में रीसेट
 
 # Super Key (Bypasses Rate Limits)
 SUPER_KEY = "ROYAL-KEY-ROYAL"
 
-# Background Task Status Dictionary
+# Task Status Dictionary
 task_status = {}
 
-# Thread Pool for Fast Processing
-executor = ThreadPoolExecutor(max_workers=5)
-
-
-def keep_alive():
-    """ Prevents Render from sleeping by pinging the server every 30 seconds. """
-    while True:
-        try:
-            requests.get("https://digitalsolutionsmidia.onrender.com/")
-            logging.info("Keep Alive: Successfully pinged the server.")
-        except Exception as e:
-            logging.error(f"Keep Alive Error: {e}")
-            print("Keep Alive My Server 🙏")
-        time.sleep(30)
+# Optimized Thread Pool for Fast Execution
+executor = ThreadPoolExecutor(max_workers=4)
 
 
 def is_rate_limited(ip, api_key):
-    """
-    Checks if the client IP has exceeded the rate limit.
-    Super Key bypasses the rate limit.
-    """
+    """ चेक करे कि यूज़र की API लिमिट पूरी हो चुकी है या नहीं। """
     if api_key == SUPER_KEY:
-        return False, MAX_REQUESTS  # Unlimited access
+        return False, "Unlimited"  # स्पेशल की वाले यूज़र्स के लिए कोई लिमिट नहीं
 
     current_time = time.time()
+    user_data = request_counts[ip]
 
-    # If more than 1 hour has passed, reset the counter
-    if current_time - request_counts[ip]["time"] > RATE_LIMIT_RESET:
-        request_counts[ip] = {"count": 0, "time": current_time}
+    # अगर 1 घंटा पूरा हो चुका है, तो लिमिट रीसेट कर दो
+    if current_time - user_data["time"] > RATE_LIMIT_RESET:
+        request_counts[ip] = {"count": 1, "time": current_time}
+        return False, MAX_REQUESTS - 1
 
-    if request_counts[ip]["count"] >= MAX_REQUESTS:
-        # If user already exceeded limit, check if 1 hour has passed
-        if current_time - request_counts[ip]["time"] < RATE_LIMIT_RESET:
-            return True, 0  # Rate limit exceeded and still within 1 hour
-        else:
-            # Reset after 1 hour
-            request_counts[ip] = {"count": 1, "time": current_time}
-            return False, MAX_REQUESTS - 1
+    # अगर लिमिट पूरी हो गई है
+    if user_data["count"] >= MAX_REQUESTS:
+        return True, 0
 
+    # लिमिट अपडेट करो
     request_counts[ip]["count"] += 1
-    remaining_requests = MAX_REQUESTS - request_counts[ip]["count"]
-    return False, max(0, remaining_requests)
+    return False, MAX_REQUESTS - request_counts[ip]["count"]
 
 
 async def generate_audio(text, voice):
-    """
-    Generates AI-based speech audio asynchronously.
-    """
+    """ AI-Generated ऑडियो फाइल बनाता है। """
     try:
         output_file = os.path.join(AUDIO_PATH, f"audio_{uuid.uuid4().hex}.mp3")
         communicate = edge_tts.Communicate(text, voice)
@@ -93,14 +72,12 @@ async def generate_audio(text, voice):
 
 
 def background_audio_generation(task_id, text, voice):
-    """
-    Runs audio generation in a separate thread.
-    """
+    """ बैकग्राउंड में ऑडियो जेनरेशन करता है। """
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        cleanup_old_files()  # Remove old files before generating new ones
+        cleanup_old_files()  # पुराने फाइल्स डिलीट करो
 
         task_status[task_id] = "processing"
         output_file = loop.run_until_complete(generate_audio(text, voice))
@@ -116,19 +93,9 @@ def background_audio_generation(task_id, text, voice):
         loop.close()
 
 
-@app.route("/", methods=["GET"])
-def home():
-    """
-    Home Route - API Status Check
-    """
-    return jsonify({"message": "AI Voice Generator API is running"})
-
-
 @app.route("/generate-audio", methods=["POST"])
 def handle_audio_generation():
-    """
-    Handles audio generation requests with rate limiting.
-    """
+    """ API कॉल के लिए रेट लिमिटिंग लागू करता है। """
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
     api_key = request.headers.get("Authorization", "")
 
@@ -136,8 +103,7 @@ def handle_audio_generation():
 
     if rate_limited:
         return jsonify({
-            "error": "You have reached your limit. Upgrade for unlimited access or wait 1 hour.",
-            "message": "Please wait 1 hour or buy premium for ₹99.",
+            "error": "आपने अपनी लिमिट पूरी कर ली है। 1 घंटे बाद दोबारा ट्राई करें या ₹99 में अनलिमिटेड एक्सेस खरीदें।",
             "remaining_requests": 0
         }), 429
 
@@ -154,18 +120,31 @@ def handle_audio_generation():
     executor.submit(background_audio_generation, task_id, text, voice)
 
     return jsonify({
-        "message": "Audio generation in progress",
+        "message": "ऑडियो जेनरेशन प्रोसेस में है।",
         "task_id": task_id,
         "status": "processing",
         "remaining_requests": remaining_requests
     }), 202
 
 
+@app.route("/remaining-requests", methods=["GET"])
+def get_remaining_requests():
+    """ यूज़र को बताता है कि उसकी कितनी रिक्वेस्ट बची हैं। """
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    api_key = request.headers.get("Authorization", "")
+
+    if api_key == SUPER_KEY:
+        return jsonify({"remaining_requests": "Unlimited"}), 200
+
+    user_data = request_counts.get(client_ip, {"count": 0, "time": time.time()})
+    remaining_requests = max(0, MAX_REQUESTS - user_data["count"])
+
+    return jsonify({"remaining_requests": remaining_requests}), 200
+
+
 @app.route("/task-status/<task_id>", methods=["GET"])
 def get_task_status(task_id):
-    """
-    Returns the status of an ongoing or completed task.
-    """
+    """ किसी भी टास्क का स्टेटस चेक करने के लिए। """
     if task_id not in task_status:
         return jsonify({"error": "Invalid Task ID"}), 404
 
@@ -183,9 +162,7 @@ def get_task_status(task_id):
 
 @app.route("/play-audio/<filename>", methods=["GET"])
 def play_audio(filename):
-    """
-    Serves the generated audio file for download.
-    """
+    """ जेनरेटेड ऑडियो को डाउनलोड करने का API। """
     try:
         file_path = os.path.join(AUDIO_PATH, filename)
         if not os.path.exists(file_path):
@@ -199,31 +176,8 @@ def play_audio(filename):
         return jsonify({"error": "File not found"}), 404
 
 
-@app.route("/remaining-requests", methods=["GET"])
-def get_remaining_requests():
-    """
-    Returns the remaining API requests for the client.
-    """
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    api_key = request.headers.get("Authorization", "")
-
-    if api_key == SUPER_KEY:
-        return jsonify({"remaining_requests": "Unlimited"}), 200
-
-    current_time = time.time()
-
-    if current_time - request_counts[client_ip]["time"] > RATE_LIMIT_RESET:
-        remaining_requests = MAX_REQUESTS
-    else:
-        remaining_requests = max(0, MAX_REQUESTS - request_counts[client_ip]["count"])
-
-    return jsonify({"remaining_requests": remaining_requests}), 200
-
-
 def cleanup_old_files():
-    """
-    Deletes audio files older than 1 hour.
-    """
+    """ 1 घंटे से पुराने ऑडियो फाइल्स को डिलीट करता है। """
     try:
         for file in os.listdir(AUDIO_PATH):
             file_path = os.path.join(AUDIO_PATH, file)
@@ -234,5 +188,23 @@ def cleanup_old_files():
         logging.error(f"Cleanup Error: {e}")
 
 
+
+def keep_alive():
+    """ Prevents Render from sleeping by pinging the server every 30 seconds. """
+    def ping_server():
+        while True:
+            try:
+                requests.get("https://digitalsolutionsmidia.onrender.com/")
+                logging.info("Keep Alive: Successfully pinged the server.")
+            except Exception as e:
+                logging.error(f"Keep Alive Error: {e}")
+            time.sleep(30)
+
+    # इसे एक अलग बैकग्राउंड Thread में चलाओ
+    thread = threading.Thread(target=ping_server, daemon=True)
+    thread.start()
+
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000, threaded=True)
+    app.run(host="0.0.0.0", port=5000, threaded=True)
