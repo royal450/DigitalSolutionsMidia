@@ -6,6 +6,8 @@ import asyncio
 import uuid
 import time
 import logging
+import threading
+import requests
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
 
@@ -27,7 +29,7 @@ TIME_WINDOW = 60   # 60 seconds per window
 RATE_LIMIT_RESET = 3600  # 1-hour reset time
 
 # Super Key (Bypasses Rate Limits)
-SUPER_KEY = "ROYAL-KEY-ROYAL"
+SUPER_KEY = "Fetch with env"
 
 # Background Task Status Dictionary
 task_status = {}
@@ -35,6 +37,23 @@ task_status = {}
 # Thread Pool for Fast Processing
 executor = ThreadPoolExecutor(max_workers=5)
 
+# Render Server URL (पिंग के लिए)
+RENDER_URL = "https://digitalsolutionsmidia.onrender.com"
+
+def keep_alive():
+    """
+    Render Server को हर 30 सेकंड में पिंग भेजता है ताकि वह एक्टिव रहे।
+    """
+    while True:
+        try:
+            requests.get(RENDER_URL)
+            logging.info("🔥 Ping Sent to Keep Server Alive")
+        except Exception as e:
+            logging.error(f"⚠️ Ping Failed: {e}")
+        time.sleep(30)
+
+# बैकग्राउंड में Keep Alive फ़ंक्शन रन करें
+threading.Thread(target=keep_alive, daemon=True).start()
 
 def is_rate_limited(ip, api_key):
     """
@@ -51,18 +70,15 @@ def is_rate_limited(ip, api_key):
         request_counts[ip] = {"count": 0, "time": current_time}
 
     if request_counts[ip]["count"] >= MAX_REQUESTS:
-        # If user already exceeded limit, check if 1 hour has passed
         if current_time - request_counts[ip]["time"] < RATE_LIMIT_RESET:
-            return True, 0  # Rate limit exceeded and still within 1 hour
+            return True, 0
         else:
-            # Reset after 1 hour
             request_counts[ip] = {"count": 1, "time": current_time}
             return False, MAX_REQUESTS - 1
 
     request_counts[ip]["count"] += 1
     remaining_requests = MAX_REQUESTS - request_counts[ip]["count"]
     return False, max(0, remaining_requests)
-
 
 async def generate_audio(text, voice):
     """
@@ -77,7 +93,6 @@ async def generate_audio(text, voice):
         logging.error(f"Error generating audio: {e}")
         return None
 
-
 def background_audio_generation(task_id, text, voice):
     """
     Runs audio generation in a separate thread.
@@ -86,7 +101,7 @@ def background_audio_generation(task_id, text, voice):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        cleanup_old_files()  # Remove old files before generating new ones
+        cleanup_old_files()
 
         task_status[task_id] = "processing"
         output_file = loop.run_until_complete(generate_audio(text, voice))
@@ -101,14 +116,12 @@ def background_audio_generation(task_id, text, voice):
     finally:
         loop.close()
 
-
 @app.route("/", methods=["GET"])
 def home():
     """
     Home Route - API Status Check
     """
-    return jsonify({"message": "AI Voice Generator API is running"})
-
+    return jsonify({"message": "🔥 AI Voice Generator API is running and staying alive!"})
 
 @app.route("/generate-audio", methods=["POST"])
 def handle_audio_generation():
@@ -146,7 +159,6 @@ def handle_audio_generation():
         "remaining_requests": remaining_requests
     }), 202
 
-
 @app.route("/task-status/<task_id>", methods=["GET"])
 def get_task_status(task_id):
     """
@@ -166,7 +178,6 @@ def get_task_status(task_id):
     elif status == "processing":
         return jsonify({"status": "processing"}), 202
 
-
 @app.route("/play-audio/<filename>", methods=["GET"])
 def play_audio(filename):
     """
@@ -184,28 +195,6 @@ def play_audio(filename):
         logging.error(f"Error serving file {filename}: {e}")
         return jsonify({"error": "File not found"}), 404
 
-
-@app.route("/remaining-requests", methods=["GET"])
-def get_remaining_requests():
-    """
-    Returns the remaining API requests for the client.
-    """
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    api_key = request.headers.get("Authorization", "")
-
-    if api_key == SUPER_KEY:
-        return jsonify({"remaining_requests": "Unlimited"}), 200
-
-    current_time = time.time()
-
-    if current_time - request_counts[client_ip]["time"] > RATE_LIMIT_RESET:
-        remaining_requests = MAX_REQUESTS
-    else:
-        remaining_requests = max(0, MAX_REQUESTS - request_counts[client_ip]["count"])
-
-    return jsonify({"remaining_requests": remaining_requests}), 200
-
-
 def cleanup_old_files():
     """
     Deletes audio files older than 1 hour.
@@ -219,7 +208,5 @@ def cleanup_old_files():
     except Exception as e:
         logging.error(f"Cleanup Error: {e}")
 
-
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, threaded=True)
-    
+    app.run(host="0.0.0.0", port=10000, threaded=True)
