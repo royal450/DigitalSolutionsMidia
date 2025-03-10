@@ -6,10 +6,10 @@ import asyncio
 import uuid
 import time
 import logging
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
 import requests
+
 
 # Flask App Setup
 app = Flask(__name__)
@@ -23,8 +23,9 @@ AUDIO_PATH = os.path.join(os.getcwd(), "audio_files")
 os.makedirs(AUDIO_PATH, exist_ok=True)
 
 # Rate Limiting Setup
-request_counts = defaultdict(lambda: {"count": 0, "time": time.time()})
+request_counts = defaultdict(lambda: {"count": 0, "time": 0})
 MAX_REQUESTS = 5  # Max 5 requests per minute
+TIME_WINDOW = 60   # 60 seconds per window
 RATE_LIMIT_RESET = 3600  # 1-hour reset time
 
 # Super Key (Bypasses Rate Limits)
@@ -37,24 +38,50 @@ task_status = {}
 executor = ThreadPoolExecutor(max_workers=5)
 
 
+def keep_alive():
+    """ Prevents Render from sleeping by pinging the server every 30 seconds. """
+    while True:
+        try:
+            requests.get("https://digitalsolutionsmidia.onrender.com/")
+            logging.info("Keep Alive: Successfully pinged the server.")
+        except Exception as e:
+            logging.error(f"Keep Alive Error: {e}")
+            print("Keep Alive My Server 🙏")
+        time.sleep(30)
+
+
 def is_rate_limited(ip, api_key):
-    """ Checks if the client IP has exceeded the rate limit. """
+    """
+    Checks if the client IP has exceeded the rate limit.
+    Super Key bypasses the rate limit.
+    """
     if api_key == SUPER_KEY:
-        return False, "Unlimited"
+        return False, MAX_REQUESTS  # Unlimited access
 
     current_time = time.time()
+
+    # If more than 1 hour has passed, reset the counter
     if current_time - request_counts[ip]["time"] > RATE_LIMIT_RESET:
         request_counts[ip] = {"count": 0, "time": current_time}
 
     if request_counts[ip]["count"] >= MAX_REQUESTS:
-        return True, 0
+        # If user already exceeded limit, check if 1 hour has passed
+        if current_time - request_counts[ip]["time"] < RATE_LIMIT_RESET:
+            return True, 0  # Rate limit exceeded and still within 1 hour
+        else:
+            # Reset after 1 hour
+            request_counts[ip] = {"count": 1, "time": current_time}
+            return False, MAX_REQUESTS - 1
 
     request_counts[ip]["count"] += 1
-    return False, MAX_REQUESTS - request_counts[ip]["count"]
+    remaining_requests = MAX_REQUESTS - request_counts[ip]["count"]
+    return False, max(0, remaining_requests)
 
 
 async def generate_audio(text, voice):
-    """ Generates AI-based speech audio asynchronously. """
+    """
+    Generates AI-based speech audio asynchronously.
+    """
     try:
         output_file = os.path.join(AUDIO_PATH, f"audio_{uuid.uuid4().hex}.mp3")
         communicate = edge_tts.Communicate(text, voice)
@@ -66,7 +93,9 @@ async def generate_audio(text, voice):
 
 
 def background_audio_generation(task_id, text, voice):
-    """ Runs audio generation in a separate thread. """
+    """
+    Runs audio generation in a separate thread.
+    """
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -89,13 +118,17 @@ def background_audio_generation(task_id, text, voice):
 
 @app.route("/", methods=["GET"])
 def home():
-    """ Home Route - API Status Check """
+    """
+    Home Route - API Status Check
+    """
     return jsonify({"message": "AI Voice Generator API is running"})
 
 
 @app.route("/generate-audio", methods=["POST"])
 def handle_audio_generation():
-    """ Handles audio generation requests with rate limiting. """
+    """
+    Handles audio generation requests with rate limiting.
+    """
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
     api_key = request.headers.get("Authorization", "")
 
@@ -103,7 +136,8 @@ def handle_audio_generation():
 
     if rate_limited:
         return jsonify({
-            "error": "Rate limit exceeded! Please wait 1 hour or upgrade for unlimited access.",
+            "error": "You have reached your limit. Upgrade for unlimited access or wait 1 hour.",
+            "message": "Please wait 1 hour or buy premium for ₹99.",
             "remaining_requests": 0
         }), 429
 
@@ -129,23 +163,29 @@ def handle_audio_generation():
 
 @app.route("/task-status/<task_id>", methods=["GET"])
 def get_task_status(task_id):
-    """ Returns the status of an ongoing or completed task. """
+    """
+    Returns the status of an ongoing or completed task.
+    """
     if task_id not in task_status:
         return jsonify({"error": "Invalid Task ID"}), 404
 
     status = task_status[task_id]
+
     if "completed" in status:
         _, audio_url = status.split("|")
         return jsonify({"status": "completed", "audio_url": audio_url}), 200
     elif "failed" in status:
         _, error_msg = status.split("|")
         return jsonify({"status": "failed", "error": error_msg}), 500
-    return jsonify({"status": "processing"}), 202
+    elif status == "processing":
+        return jsonify({"status": "processing"}), 202
 
 
 @app.route("/play-audio/<filename>", methods=["GET"])
 def play_audio(filename):
-    """ Serves the generated audio file for download. """
+    """
+    Serves the generated audio file for download.
+    """
     try:
         file_path = os.path.join(AUDIO_PATH, filename)
         if not os.path.exists(file_path):
@@ -161,7 +201,9 @@ def play_audio(filename):
 
 @app.route("/remaining-requests", methods=["GET"])
 def get_remaining_requests():
-    """ Returns the remaining API requests for the client. """
+    """
+    Returns the remaining API requests for the client.
+    """
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
     api_key = request.headers.get("Authorization", "")
 
@@ -169,15 +211,19 @@ def get_remaining_requests():
         return jsonify({"remaining_requests": "Unlimited"}), 200
 
     current_time = time.time()
-    if current_time - request_counts[client_ip]["time"] > RATE_LIMIT_RESET:
-        request_counts[client_ip] = {"count": 0, "time": current_time}
 
-    remaining_requests = max(0, MAX_REQUESTS - request_counts[client_ip]["count"])
+    if current_time - request_counts[client_ip]["time"] > RATE_LIMIT_RESET:
+        remaining_requests = MAX_REQUESTS
+    else:
+        remaining_requests = max(0, MAX_REQUESTS - request_counts[client_ip]["count"])
+
     return jsonify({"remaining_requests": remaining_requests}), 200
 
 
 def cleanup_old_files():
-    """ Deletes audio files older than 1 hour. """
+    """
+    Deletes audio files older than 1 hour.
+    """
     try:
         for file in os.listdir(AUDIO_PATH):
             file_path = os.path.join(AUDIO_PATH, file)
@@ -188,17 +234,5 @@ def cleanup_old_files():
         logging.error(f"Cleanup Error: {e}")
 
 
-def keep_alive():
-    """ Prevents Render from sleeping by pinging the server every 30 seconds. """
-    while True:
-        try:
-            requests.get("https://digitalsolutionsmidia.onrender.com/")
-            logging.info("Keep Alive: Successfully pinged the server.")
-        except Exception as e:
-            logging.error(f"Keep Alive Error: {e}")
-        time.sleep(30)
-
-
 if __name__ == "__main__":
-    threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=10000, threaded=True)
