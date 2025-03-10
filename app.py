@@ -1,116 +1,225 @@
-from flask import Flask, request, send_from_directory, url_for, render_template
-import os, asyncio, uuid
-import PyPDF2
-import edge_tts
-from bs4 import BeautifulSoup
+from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
-from flask_socketio import SocketIO
+import edge_tts
+import os
+import asyncio
+import uuid
+import time
+import logging
+from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
 
-app = Flask(__name__, template_folder="templates")
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Flask App Setup
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "templates/output"
-STATUS_FILE = "templates/status.txt"
+# Logging Configuration
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# ✅ Ensure directories exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+# Directory to Store Audio Files
+AUDIO_PATH = os.path.join(os.getcwd(), "audio_files")
+os.makedirs(AUDIO_PATH, exist_ok=True)
 
-# ✅ Auto-create status file if missing
-if not os.path.exists(STATUS_FILE):
-    with open(STATUS_FILE, "w", encoding="utf-8") as f:
-        f.write("Ready!")
+# Rate Limiting Setup
+request_counts = defaultdict(lambda: {"count": 0, "time": 0})
+MAX_REQUESTS = 5  # Max 5 requests per minute
+TIME_WINDOW = 60   # 60 seconds per window
+RATE_LIMIT_RESET = 3600  # 1-hour reset time
 
-def update_status(text):
-    """✅ Update status.txt & auto-create if missing"""
-    try:
-        with open(STATUS_FILE, "w", encoding="utf-8") as f:
-            f.write(text)
-    except Exception as e:
-        print(f"⚠️ Error writing status file: {e}")
+# Super Key (Bypasses Rate Limits)
+SUPER_KEY = "ROYAL-KEY-ROYAL"
 
-async def generate_speech(text, lang, gender, filename):
-    voice_map = {"Male": "en-US-GuyNeural", "Female": "en-US-JennyNeural"}
-    voice = voice_map.get(gender, "en-US-JennyNeural")
-    output_path = os.path.join(OUTPUT_FOLDER, filename)
+# Background Task Status Dictionary
+task_status = {}
 
-    try:
-        update_status("Generating speech...")
-        tts = edge_tts.Communicate(text, voice)
-        await tts.save(output_path)
-        socketio.emit("audio_ready", {"mp3_url": url_for("serve_output", filename=filename, _external=True)})
-        update_status(f"Done! Audio ready: {filename}")
-    except Exception as e:
-        update_status(f"Error generating speech: {e}")
+# Thread Pool for Fast Processing
+executor = ThreadPoolExecutor(max_workers=5)
 
-@app.route("/upload", methods=["POST"])
-def upload_file():
-    if "file" not in request.files:
-        update_status("No file uploaded. Creating default file...")
-        default_text = "This is a default text because no file was uploaded."
-        file_path = os.path.join(UPLOAD_FOLDER, "default.txt")
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(default_text)
-        extracted_text = default_text
-    else:
-        file = request.files["file"]
-        if file.filename == "":
-            update_status("No selected file. Creating default file...")
-            file_path = os.path.join(UPLOAD_FOLDER, "default.txt")
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write("This is a default text because no file was selected.")
-            extracted_text = "This is a default text because no file was selected."
+
+def is_rate_limited(ip, api_key):
+    """
+    Checks if the client IP has exceeded the rate limit.
+    Super Key bypasses the rate limit.
+    """
+    if api_key == SUPER_KEY:
+        return False, MAX_REQUESTS  # Unlimited access
+
+    current_time = time.time()
+
+    # If more than 1 hour has passed, reset the counter
+    if current_time - request_counts[ip]["time"] > RATE_LIMIT_RESET:
+        request_counts[ip] = {"count": 0, "time": current_time}
+
+    if request_counts[ip]["count"] >= MAX_REQUESTS:
+        # If user already exceeded limit, check if 1 hour has passed
+        if current_time - request_counts[ip]["time"] < RATE_LIMIT_RESET:
+            return True, 0  # Rate limit exceeded and still within 1 hour
         else:
-            file_ext = file.filename.rsplit(".", 1)[-1]
-            unique_filename = f"{uuid.uuid4()}.{file_ext}"
-            file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
-            file.save(file_path)
+            # Reset after 1 hour
+            request_counts[ip] = {"count": 1, "time": current_time}
+            return False, MAX_REQUESTS - 1
 
-            # Extract text based on file type
-            if file.filename.endswith(".pdf"):
-                extracted_text = extract_text_from_pdf(file_path)
-            elif file.filename.endswith(".html"):
-                extracted_text = extract_text_from_html(file_path)
-            elif file.filename.endswith(".txt") or file.filename.endswith(".text"):
-                with open(file_path, "r", encoding="utf-8") as txt_file:
-                    extracted_text = txt_file.read()
-            else:
-                update_status("Unsupported file type, using default text.")
-                extracted_text = "Unsupported file type, using default text."
+    request_counts[ip]["count"] += 1
+    remaining_requests = MAX_REQUESTS - request_counts[ip]["count"]
+    return False, max(0, remaining_requests)
 
-    lang = request.args.get("lang", "en-US")
-    gender = request.args.get("gender", "Female")
-    mp3_filename = f"{uuid.uuid4()}.mp3"
 
-    update_status("Processing text-to-speech...")
+async def generate_audio(text, voice):
+    """
+    Generates AI-based speech audio asynchronously.
+    """
+    try:
+        output_file = os.path.join(AUDIO_PATH, f"audio_{uuid.uuid4().hex}.mp3")
+        communicate = edge_tts.Communicate(text, voice)
+        await communicate.save(output_file)
+        return output_file
+    except Exception as e:
+        logging.error(f"Error generating audio: {e}")
+        return None
 
-    # ✅ Use `asyncio.run()` to avoid event loop error
-    asyncio.run(generate_speech(extracted_text, lang, gender, mp3_filename))
 
-    return "Processing Started", 202
+def background_audio_generation(task_id, text, voice):
+    """
+    Runs audio generation in a separate thread.
+    """
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-@app.route("/status")
-def get_status():
-    """✅ Serve status file & auto-create if missing"""
-    if not os.path.exists(STATUS_FILE):
-        update_status("Ready!")
-    return send_from_directory("templates", "status.txt")
+        cleanup_old_files()  # Remove old files before generating new ones
 
-@app.route("/output/<filename>")
-def serve_output(filename):
-    """✅ Serve audio files & auto-create if missing"""
-    file_path = os.path.join(OUTPUT_FOLDER, filename)
-    if not os.path.exists(file_path):
-        update_status("Requested audio not found, creating dummy audio...")
-        with open(file_path, "wb") as f:
-            f.write(b"")
-    return send_from_directory(OUTPUT_FOLDER, filename)
+        task_status[task_id] = "processing"
+        output_file = loop.run_until_complete(generate_audio(text, voice))
 
-@app.route("/")
-def index():
-    return render_template("index.html")  # ✅ Now serves index.html properly
+        if output_file:
+            task_status[task_id] = f"completed|/play-audio/{os.path.basename(output_file)}"
+        else:
+            task_status[task_id] = "failed|Error generating audio"
+    except Exception as e:
+        logging.error(f"Background Task Error: {e}")
+        task_status[task_id] = f"failed|{str(e)}"
+    finally:
+        loop.close()
+
+
+@app.route("/", methods=["GET"])
+def home():
+    """
+    Home Route - API Status Check
+    """
+    return jsonify({"message": "AI Voice Generator API is running"})
+
+
+@app.route("/generate-audio", methods=["POST"])
+def handle_audio_generation():
+    """
+    Handles audio generation requests with rate limiting.
+    """
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    api_key = request.headers.get("Authorization", "")
+
+    rate_limited, remaining_requests = is_rate_limited(client_ip, api_key)
+
+    if rate_limited:
+        return jsonify({
+            "error": "You have reached your limit. Upgrade for unlimited access or wait 1 hour.",
+            "message": "Please wait 1 hour or buy premium for ₹99.",
+            "remaining_requests": 0
+        }), 429
+
+    data = request.json
+    text = data.get("text")
+    voice = data.get("voice")
+
+    if not text or not voice:
+        return jsonify({"error": "Missing text or voice"}), 400
+
+    task_id = uuid.uuid4().hex
+    task_status[task_id] = "processing"
+
+    executor.submit(background_audio_generation, task_id, text, voice)
+
+    return jsonify({
+        "message": "Audio generation in progress",
+        "task_id": task_id,
+        "status": "processing",
+        "remaining_requests": remaining_requests
+    }), 202
+
+
+@app.route("/task-status/<task_id>", methods=["GET"])
+def get_task_status(task_id):
+    """
+    Returns the status of an ongoing or completed task.
+    """
+    if task_id not in task_status:
+        return jsonify({"error": "Invalid Task ID"}), 404
+
+    status = task_status[task_id]
+
+    if "completed" in status:
+        _, audio_url = status.split("|")
+        return jsonify({"status": "completed", "audio_url": audio_url}), 200
+    elif "failed" in status:
+        _, error_msg = status.split("|")
+        return jsonify({"status": "failed", "error": error_msg}), 500
+    elif status == "processing":
+        return jsonify({"status": "processing"}), 202
+
+
+@app.route("/play-audio/<filename>", methods=["GET"])
+def play_audio(filename):
+    """
+    Serves the generated audio file for download.
+    """
+    try:
+        file_path = os.path.join(AUDIO_PATH, filename)
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found"}), 404
+
+        response = make_response(send_from_directory(AUDIO_PATH, filename, mimetype="audio/mpeg", as_attachment=True))
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        return response
+    except Exception as e:
+        logging.error(f"Error serving file {filename}: {e}")
+        return jsonify({"error": "File not found"}), 404
+
+
+@app.route("/remaining-requests", methods=["GET"])
+def get_remaining_requests():
+    """
+    Returns the remaining API requests for the client.
+    """
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    api_key = request.headers.get("Authorization", "")
+
+    if api_key == SUPER_KEY:
+        return jsonify({"remaining_requests": "Unlimited"}), 200
+
+    current_time = time.time()
+
+    if current_time - request_counts[client_ip]["time"] > RATE_LIMIT_RESET:
+        remaining_requests = MAX_REQUESTS
+    else:
+        remaining_requests = max(0, MAX_REQUESTS - request_counts[client_ip]["count"])
+
+    return jsonify({"remaining_requests": remaining_requests}), 200
+
+
+def cleanup_old_files():
+    """
+    Deletes audio files older than 1 hour.
+    """
+    try:
+        for file in os.listdir(AUDIO_PATH):
+            file_path = os.path.join(AUDIO_PATH, file)
+            if file.startswith("audio_") and file.endswith(".mp3") and time.time() - os.path.getmtime(file_path) > 3600:
+                os.remove(file_path)
+                logging.info(f"Deleted Old File: {file}")
+    except Exception as e:
+        logging.error(f"Cleanup Error: {e}")
+
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=5000, threaded=True)
+    
