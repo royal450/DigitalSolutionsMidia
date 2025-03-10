@@ -1,411 +1,621 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Royal Dev - PDF, HTML, Text to Speech</title>
-    
-    <!-- Styles & Fonts -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <style>
-        :root {
-            --neon-blue: #4dabf7;
-            --neon-purple: #9775fa;
-            --dark-bg: #0a192f;
-        }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #0a192f 0%, #020c1b 100%);
-            color: #c3dafe;
-            min-height: 100vh;
-        }
-
-        /* Enhanced UI Elements */
-        .card {
-            backdrop-filter: blur(12px);
-            background-color: rgba(15, 23, 42, 0.8) !important;
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
-        }
-
-        .btn-outline-primary {
-            transition: all 0.3s ease;
-            border-width: 2px;
-        }
-
-        /* Text Highlighting */
-        .highlight-word {
-            background-color: #ff0000 !important;
-            color: white !important;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
-            border-radius: 3px;
-            padding: 2px 4px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* Progress Bar */
-        #progressBar {
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
-            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* Animations */
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #1a365d;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--neon-blue);
-            border-radius: 4px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AiVoice - Ultra Premium Navbar</title>
+  
+  <!-- Bootstrap & Google Fonts -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/royal450/App-icon-/style.css">
+  
+  <!-- Font Awesome CDN (Latest Version) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <style>
+    /* Add your custom styles here */
+  </style>
 </head>
-<body class="antialiased">
-    <!-- Main Container -->
-    <div class="container py-5">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                
-               ROYAL RENDER
-                
-            </h1>
-            <p class="text-gray-400 mt-2">♥️ Browse Your File Dear ♥️</p>
-        </div>
 
-        <!-- File Upload Section -->
-        <div class="row justify-content-center mb-5">
-            <div class="col-md-8">
-                <div class="card border border-primary rounded-lg">
-                    <div class="card-body text-center p-5">
-                        <div id="drop-zone" 
-                             class="border-2 border-dashed border-blue-400 rounded-lg p-8 cursor-pointer transition-all hover:bg-opacity-10 hover:bg-blue-500">
-                            <i class="fas fa-file-upload fa-3x text-blue-400 mb-3"></i>
-                            <h3 class="text-lg font-semibold mb-2">Drag & Drop Files</h3>
-                            <p class="text-gray-600 text-sm mb-4">Supported formats: PDF, HTML, TXT , Text and Comming Soon....☺️</p>
-                            <input type="file" id="fileInput" class="hidden" accept=".pdf,.html,.txt,.text">
-                            <button onclick="document.getElementById('fileInput').click()" 
-                                    class="btn btn-outline-primary rounded-pill px-6">
-                                Browse Files
-                            </button>
-                            <div id="filePreview" class="mt-3 text-sm text-blue-300"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-
-
-
-
-
-<br />
-
-
-
-<!-- Language & Voice Selection -->
-<div class="row justify-content-center mb-4">
-    <div class="col-md-8">
-        <div class="card bg-dark border border-primary rounded-lg">
-            <div class="card-body">
-                <h5 class="text-blue-300 mb-3">Select Language & Voice</h5>
-
-                <!-- Language Dropdown -->
-                <div class="mb-3">
-                    <label class="text-blue-300 mb-1">Language</label>
-                    <select id="language" class="form-control bg-gray-900 text-white border-primary">
-                        <option value="en-US">English</option>
-                        <option value="hi-IN">Hindi</option>
-                        <option value="fr-FR">French</option>
-                        <option value="es-ES">Spanish</option>
-                        <option value="zh-CN">Chinese</option>
-                        <!-- और भी भाषाएँ जोड़ सकते हैं -->
-                    </select>
-                </div>
-
-                <!-- Voice Dropdown -->
-                <div class="mb-3">
-                    <label class="text-blue-300 mb-1">Voice</label>
-                    <select id="voice" class="form-control bg-gray-900 text-white border-primary">
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                </div>
-            </div>
-        </div>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg">
+    <div class="container">
+      <a class="navbar-brand" href="#">
+        <img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" alt="Logo">
+        AiVoice
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item active">
+            <a class="nav-link" href="#" id="about">
+              <i class="fas fa-info-circle"></i> About
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" id="services">
+              <i class="fas fa-cogs"></i> Services
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" id="subscription">
+              <i class="fas fa-gem"></i> Subscription
+            </a>
+          </li>
+        </ul>
+      </div>
     </div>
-</div>
+  </nav>
 
-<!-- Progress & Status -->
-<div class="row justify-content-center mb-5">
-    <div class="col-md-8">
-        <div class="card bg-dark border border-primary rounded-lg">
-            <div class="card-body">
-                <!-- Progress Bar -->
-                <div id="progressContainer" class="mb-4" style="display: none;">
-                    <div class="flex justify-between mb-2">
-                        <span class="text-sm text-blue-300">Processing...</span>
-                        <span id="progressPercent" class="text-sm text-blue-300">0%</span>
-                    </div>
-                    <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
-                        <div id="progressBar" 
-                             class="h-full bg-gradient-to-r from-blue-400 to-purple-500"
-                             style="width: 0%"></div>
-                    </div>
-                </div>
-
-                <!-- Live Logs -->
-                <div id="logContainer" class="bg-gray-900 rounded-lg p-3 h-40 overflow-y-auto">
-                    <div id="statusLogs" class="space-y-2"></div>
-                </div>
-            </div>
+  <main>
+    <section class="hero-section" id="home">
+      <div class="download-container">
+        <h1 style="font-size: 1.5rem; margin-bottom: 1.5rem; font-variant: small-caps">Start Creating Unlimited Voices Story And Earn Money For YouTube Story video</h1>
+        <div class="input-group">
+          <textarea type="text" class="url-input" placeholder="Enter text to generate audio..." style="border-radius: 15px" id="textInput"></textarea>
+          <button class="paste-btn" onclick="handlePaste()">
+            <i class="fas fa-paste"></i>
+          </button>
         </div>
-    </div>
-</div>
-    
-    
-    
-    
-    
-    
-    
-    
-        <!-- Extracted Text & Audio Player -->
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <!-- Extracted Text -->
-                <div id="textPreview" 
-                     class="card bg-dark border border-primary rounded-lg mb-4"
-                     style="display: none;">
-                    <div class="card-body">
-                        <h3 class="text-lg font-semibold mb-3">Extracted Text</h3>
-                        <div id="extractedTextContent"
-                             class="h-64 overflow-y-auto p-3 bg-gray-900 rounded-lg text-gray-300">
-                        </div>
-                    </div>
-                </div>
-
-             
-             
-
-
-
-
-
-
-
-
-
-
-
-   <!-- Audio Player -->
-                <div id="audioPlayer" class="card bg-dark border border-primary rounded-lg" style="display: none;">
-                    <div class="card-body">
-                        <h3 class="text-lg font-semibold mb-3">Generated Audio</h3>
-                        <div class="flex items-center justify-between">
-                            <audio id="audioElement" controls class="flex-1 mr-4">
-                                Your browser does not support the audio element.
-                            </audio>
-                            <button id="downloadBtn" 
-                                    class="btn btn-outline-success rounded-pill px-4"
-                                    disabled>
-                                <i class="fas fa-download mr-2"></i>Download MP3
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="progress-container" id="progress">
+          <div class="progress-bar">Processing...</div>
         </div>
+
+        <div class="container d-flex justify-content-center mt-5">
+          <div class="box showcase-box p-1 d-flex align-items-center">
+            <span class="limit-text"><i class="fas fa-bolt"></i> <span id="remainingRequests"> Free - 5 / Request Left</span></span>
+            <div class="divider"></div>
+
+            <select id="voiceSelect">
+              <optgroup label="🇬🇧 English Voices">
+                <option value="en-US-JennyNeural">Jusiy (Female)</option>
+                <option value="en-US-GuyNeural">Guy (Male)</option>
+                <option value="en-GB-SoniaNeural">Cally (Female - UK)</option>
+                <option value="en-GB-RyanNeural">Jack (Male - UK)</option>
+              </optgroup>
+              <optgroup label="🇮🇳 Hindi Voices">
+                <option value="hi-IN-SwaraNeural">Pinki (Female)</option>
+                <option value="hi-IN-MadhurNeural">Gautam (Male)</option>
+                <option value="hi-IN-HemantNeural">Hemant  ⭐ -Paid- ⭐</option>
+              </optgroup>
+            </select>
+
+            <button class="btn upgrade-btn" onclick="_Data99()">Upgrade</button>
+          </div>
+        </div>
+
+        <br /><br />
+
+        <button class="download-btn" onclick="generateAudio()" id="payButton">
+          ☞ Create Now ☜
+        </button>
+      </div>
+    </section>
+
+    <div class="loading"></div>
+
+    <div class="future-output-container">
+      <p class="magic-status-text"><i class="fas fa-check-circle"></i> Output Ready to Download</p>
+      <audio id="ultra-music" src="your-audio-file.mp3"></audio>
+      <div class="action-zone">
+        <button class="boom-play-btn" id="playButton" onclick="playAudio()">
+          <i class="fas fa-play"></i> Play
+     <div id="loading" style="display: none;">Generating...</div>
+
+        </button>
+        
+        
+        <button class="golden-download" onclick="downloadAudio()">
+          <audio id="audioPlayer" style="display: flex;"></audio>
+          <br>
+          <a id="downloadLink" style="display: none;" download="generated_audio.mp3">⬇ Download</a>
+        </button>
+      </div>
+      <p class="thank-you-msg"><i class="fas fa-star"></i> Thanks for using! Visit Again! <i class="fas fa-arrow-right"></i></p>
     </div>
 
 
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.js"></script>
+    <!-- Additional Premium Cards -->
+    <div class="container d-flex justify-content-center mt-5">
+      <div class="dabang-card">
+        <div class="dabang-header">
+          <h3 class="dabang-title"> Long Story Or Pod Cast YouTubers</h3>
+          <p class="dabang-price">₹99 <span>/ Unlimited (credited)</span></p>
+        </div>
+        <div class="dabang-body">
+          <p class="dabang-feature"><i class="fas fa-infinity"></i>हम आपको एक पर्सनल लिंक देंगे , जो अनलिमिटेड होगा आप कितने भी स्टोरी बना सकते हैं , वह लिंक 1 महीने में एक्सपायर हो जाएगा</p>
+
+       </div>
+        <button class="dabang-btn" onclick="_Data99()">Get Premium</button>
+      </div>
+    </div>
+
+    <div class="container d-flex justify-content-center mt-5">
+      <div class="dabang-card">
+        <div class="dabang-header">
+          <h3 class="dabang-title">Source Code</h3>
+          <p class="dabang-price">₹599 <span> Ui + backned</span></p>
+        </div>
+        <div class="dabang-body">
+          <p class="dabang-feature"><i class="fas fa-infinity"></i> You've  Supar Key</p>
+          <p class="dabang-feature"><i class="fas fa-microphone"></i> Voices: 10+</p>
+          <p class="dabang-feature"><i class="fas fa-cloud"></i> API:  Unlimited+commerical</p>
+          <p class="dabang-feature"><i class="fas fa-lock"></i>One Time Fee 599</p>
+        </div>
+        <button class="dabang-btn" onclick="_Data599()">Get Premium</button>
+      </div>
+    </div>
+
 
 <script>
-  let socket = io.connect("http://127.0.0.1:5000");
+  
+  let f_plain = "https://wa.me/919104037184?text=🚀%20*AI%20PRO%20SERVICES%20-%20YELLOW%20PLAN%20₹99!*%20💛%0A%0A🟡%20*Unlock%20AI%20Power%20for%2030%20Days!*%0A✅%20*Unlimited%20AI%20Requests*%20(for%20a%20month)%0A✅%20*Daily%20Limit:%20100%20API%20Calls*%0A✅%20*Access%20to%20Advanced%20AI%20Features*%0A✅%20*Personalized%20AI%20Assistance*%0A✅%20*Instant%20Activation%20After%20Payment*%0A%0A👉%20*Subscribe%20Now%20for%20₹99!*%20%F0%9F%91%89%20https://wa.me/9104037184?text=I%20want%20to%20buy%20the%20Yellow%20Plan%20for%20%E2%82%B999%0A%0A💬%20*Need%20Help?*%0A📞%20Contact%20us%20anytime!%20We’re%20here%20to%20help.%0A%0A🚀%20*Start%20Now%20%26%20Unlock%20the%20Power%20of%20AI!*"
+  function _Data99(){
+    
+    window.location.href = f_plain;
+    
+  }
+  
+  
+  
+   function _Data599(){
+    
+    let plain2 = "https://wa.me/919104037184?text=🚀%20*AI%20PRO%20SERVICES%20-%20FULL%20AI%20SOURCE%20CODE%20₹599!*%20💻%0A%0A🖥️%20*Own%20the%20Entire%20AI%20System%20-%20UI%20+%20Backend!*%0A✅%20*Complete%20AI%20Source%20Code%20(UI%20+%20Backend)*%0A✅%20*Admin%20Dashboard%20-%20Full%20Control*%0A✅%20*Lifetime%20Access%20-%20No%20Extra%20Fees!*%0A✅%20*Fully%20Documented%20Code%20-%20Easy%20to%20Customize*%0A✅%20*One-Time%20Payment%20-%20No%20Hidden%20Charges!*%0A%0A"
+    
+    window.location.href = plain2;
+    
+  }
 
-  // 📌 Drag & Drop Handlers
-  const dropZone = document.getElementById('drop-zone');
-  const fileInput = document.getElementById('fileInput');
+</script>
 
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('bg-blue-500', 'bg-opacity-10');
+
+
+
+
+    <!-- Feature Grid -->
+    <section class="feature-grid" id="features">
+      <div class="feature-card">
+        <i class="fas fa-rocket feature-icon"></i>
+        <h3>Super Fast Processing</h3>
+        <p>Lightning-fast downloads with our optimized servers</p>
+      </div>
+      <div class="feature-card">
+        <i class="fas fa-shield-alt feature-icon"></i>
+        <h3>Military-Grade Security</h3>
+        <p>End-to-end encrypted connections for safe downloads</p>
+      </div>
+      <div class="feature-card">
+        <i class="fas fa-magic feature-icon"></i>
+        <h3>Smart Quality Detection</h3>
+        <p>Automatic HD/4K quality recognition</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>Ai Voice</h3>
+        <p>Premium Ai Voice For Youtube Story Videos</p>
+      </div>
+      <div class="footer-section">
+        <h3>Quick Links</h3>
+        <div class="footer-links">
+          <a href="#"><i class="fas fa-chevron-right"></i> About Us</a>
+          <a href="#"><i class="fas fa-chevron-right"></i> Privacy Policy</a>
+          <a href="#"><i class="fas fa-chevron-right"></i> Terms of Service</a>
+        </div>
+      </div>
+      <div class="footer-section">
+        <h3>Connect</h3>
+        <div class="social-links">
+          <a href="#"><i class="fab fa-instagram"></i></a>
+          <a href="#"><i class="fab fa-twitter"></i></a>
+          <a href="#"><i class="fab fa-facebook"></i></a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+
+<script>
+  
+  
+  const textInput = document.getElementById("textInput");
+  const voiceSelect = document.getElementById("voiceSelect");
+  const playButton = document.getElementById("playButton");
+  const downloadButton = document.querySelector(".golden-download");
+  const progressContainer = document.getElementById("progress");
+  const audioPlayer = document.getElementById("ultra-music");
+  const downloadLink = document.getElementById("downloadLink");
+  const loadingText = document.getElementById("loading");
+const navbar = document.querySelector(".navbar");
+  const navLinks = document.querySelectorAll(".nav-link");
+  const sections = document.querySelectorAll("section");
+
+  
+  
+
+
+  document.addEventListener("DOMContentLoaded", function() {
+    
+  // Smooth Scroll Effect
+  navLinks.forEach(link => {
+    link.addEventListener("click", function(event) {
+      event.preventDefault();
+      const targetId = this.getAttribute("href").substring(1);
+      const targetSection = document.getElementById(targetId);
+      
+      if (targetSection) {
+        window.scrollTo({
+          top: targetSection.offsetTop - navbar.offsetHeight,
+          behavior: "smooth"
+        });
+      }
+    });
   });
-
-  dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
+  
+  // Highlight Active Section in Navbar
+  function highlightNav() {
+    let scrollY = window.scrollY;
+    sections.forEach(section => {
+      let sectionTop = section.offsetTop - navbar.offsetHeight;
+      let sectionHeight = section.offsetHeight;
+      let sectionId = section.getAttribute("id");
+      
+      if (scrollY >= sectionTop && scrollY < sectionTop + sectionHeight) {
+        navLinks.forEach(link => link.classList.remove("active"));
+        document.querySelector(`.nav-link[href="#${sectionId}"]`)?.classList.add("active");
+      }
+    });
+  }
+  
+  // Shrink Navbar on Scroll
+  function shrinkNavbar() {
+    if (window.scrollY > 50) {
+      navbar.classList.add("shrink");
+    } else {
+      navbar.classList.remove("shrink");
+    }
+  }
+  
+  // Auto-Close Mobile Navbar on Link Click
+  document.querySelectorAll(".navbar-toggler").forEach(button => {
+    button.addEventListener("click", function() {
+      document.querySelector(".navbar-collapse").classList.toggle("show");
+    });
   });
-
-  dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('bg-blue-500', 'bg-opacity-10');
-    const files = e.dataTransfer.files;
-    if (files.length) handleFile(files[0]);
+  
+  // Attach Events
+  window.addEventListener("scroll", function() {
+    shrinkNavbar();
+    highlightNav();
   });
+});
 
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length) handleFile(e.target.files[0]);
-  });
 
-  // 📌 Handle File Upload & Processing
-  async function handleFile(file) {
-    if (!file) return;
 
-    const allowedTypes = ['application/pdf', 'text/html', 'text/plain'];
-    if (!allowedTypes.includes(file.type)) {
-      addLog('❌ Invalid file type!', 'error');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</script>
+
+
+
+
+
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+  const textInput = document.getElementById("textInput");
+  const voiceSelect = document.getElementById("voiceSelect");
+  const playButton = document.getElementById("playButton");
+  const downloadButton = document.querySelector(".golden-download");
+  const progressContainer = document.getElementById("progress");
+  const audioPlayer = document.getElementById("ultra-music");
+  const downloadLink = document.getElementById("downloadLink");
+  const loadingText = document.getElementById("loading");
+  const remainingRequestsDiv = document.getElementById("remainingRequests"); // ✅ Div to show remaining requests
+  
+  const API_BASE_URL = "http://127.0.0.1:5000"; // ✅ Backend API URL
+  
+  function showLoading() {
+    loadingText.style.display = "block";
+    progressContainer.style.display = "block";
+  }
+  
+  function hideLoading() {
+    loadingText.style.display = "none";
+    progressContainer.style.display = "none";
+  }
+  
+  async function generateAudio() {
+    const text = textInput.value.trim();
+    const voice = voiceSelect.value;
+    
+    if (!text) {
+      Swal.fire({
+        icon: "warning",
+        title: "Oops!",
+        text: "Please enter some text to generate audio.",
+      });
       return;
     }
-
-    document.getElementById('filePreview').textContent = `📄 Selected File: ${file.name}`;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
+    
+    showLoading();
+    
     try {
-      showProgress(true);
-      addLog('📤 Uploading file...', 'info');
-
-      const response = await fetch(`/upload?sid=${socket.id}`, {
-        method: 'POST',
-        body: formData
+      const response = await fetch(`${API_BASE_URL}/generate-audio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text, voice }),
       });
-
+      
       const data = await response.json();
-      if (data.error) throw new Error(data.error);
-
-      addLog('✅ Conversion Complete!', 'success');
-      showAudioPlayer(data.mp3_file);
-      showTextPreview(data.extracted_text);
+      
+      if (response.status === 202) {
+        checkTaskStatus(data.task_id);
+      } else {
+        hideLoading();
+        Swal.fire({
+          icon: "error",
+          title: "Error!",
+          text: data.error || "Something went wrong!",
+        });
+      }
+      
+      // ✅ Update remaining requests after making a request
+      updateRemainingRequests();
+      
     } catch (error) {
-      addLog(`❌ Error: ${error.message}`, 'error');
-    } finally {
-      showProgress(false);
+      hideLoading();
+      Swal.fire({
+        icon: "error",
+        title: "Error!",
+        text: "Failed to connect to the server.",
+      });
     }
   }
-
-  // 📌 Real-time Progress Updates (Socket.IO)
-  socket.on("progress", (data) => {
-    updateProgress(data.progress);
-    addLog(data.status, "info");
-  });
-
-  // 📌 UI Functions
-  function addLog(message, type = 'info') {
-    const logEntry = document.createElement('div');
-    logEntry.className = `flex items-center text-sm ${type === 'error' ? 'text-red-400' : 'text-blue-300'}`;
-
-    const icon = type === 'error' ? '❌' :
-      type === 'success' ? '✅' : 'ℹ️';
-
-    logEntry.innerHTML = `
-            <span class="mr-2">${icon}</span>
-            <span>${message}</span>
-        `;
-
-    document.getElementById('statusLogs').appendChild(logEntry);
-    document.getElementById('logContainer').scrollTop = document.getElementById('logContainer').scrollHeight;
-  }
-
-  function showProgress(show) {
-    document.getElementById('progressContainer').style.display = show ? 'block' : 'none';
-  }
-
-  function updateProgress(percentage) {
-    document.getElementById('progressBar').style.width = `${percentage}%`;
-    document.getElementById('progressPercent').textContent = `${percentage}%`;
-  }
-
-  // 📌 Word Highlighting & Audio Sync
-  function highlightWords(text) {
-    const words = text.match(/[\w']+|[.,!?;”“"‘’]/g) || [];
-    const formatted = words.map(word => `<span class="word">${word}</span>`).join(' ');
-    document.getElementById('extractedTextContent').innerHTML = formatted;
-  }
-
-  function setupAudioSync() {
-    const audioElement = document.getElementById('audioElement');
-    const words = document.getElementsByClassName('word');
-    let currentWord = -1;
-
-    audioElement.addEventListener('loadedmetadata', () => {
-      audioElement.addEventListener('timeupdate', () => {
-        const currentTime = audioElement.currentTime;
-        const wordDuration = audioElement.duration / words.length;
-        const newIndex = Math.floor(currentTime / wordDuration);
-
-        if (newIndex !== currentWord && newIndex < words.length) {
-          Array.from(words).forEach(word =>
-            word.classList.remove('highlight-word'));
-          words[newIndex].classList.add('highlight-word');
-          currentWord = newIndex;
-
-          words[newIndex].scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
+  
+  async function checkTaskStatus(taskId) {
+    let status = "processing";
+    
+    while (status === "processing") {
+      try {
+        const response = await fetch(`${API_BASE_URL}/task-status/${taskId}`);
+        const data = await response.json();
+        
+        if (data.status === "completed") {
+          status = "completed";
+          hideLoading();
+          audioPlayer.src = `${API_BASE_URL}${data.audio_url}`;
+          downloadLink.href = `${API_BASE_URL}${data.audio_url}`;
+          downloadLink.style.display = "block";
+          Swal.fire({
+            icon: "success",
+            title: "Success!",
+            text: "Your audio is ready!",
           });
+          
+        } else if (data.status === "failed") {
+          status = "failed";
+          hideLoading();
+          Swal.fire({
+            icon: "error",
+            title: "Error!",
+            text: data.error || "Audio generation failed.",
+          });
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 seconds delay before retrying
+        }
+      } catch (error) {
+        hideLoading();
+        Swal.fire({
+          icon: "error",
+          title: "Error!",
+          text: "Failed to check audio status.",
+        });
+        break;
+      }
+    }
+  }
+  
+  async function updateRemainingRequests() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/remaining-requests`);
+      const data = await response.json();
+      
+      if (remainingRequestsDiv) {
+        remainingRequestsDiv.textContent = `Remaining Requests: ${data.remaining_requests}`;
+      }
+    } catch (error) {
+      console.error("Failed to fetch remaining requests:", error);
+    }
+  }
+  
+  function togglePlay() {
+    if (audioPlayer.src) {
+      if (audioPlayer.paused) {
+        audioPlayer.play();
+        playButton.innerHTML = '<i class="fas fa-pause"></i> Pause';
+      } else {
+        audioPlayer.pause();
+        playButton.innerHTML = '<i class="fas fa-play"></i> Play';
+      }
+    }
+  }
+  
+  function downloadAudio() {
+    if (downloadLink.href) {
+      const a = document.createElement("a");
+      a.href = downloadLink.href;
+      a.setAttribute("download", "generated-audio.mp3");
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      Swal.fire({
+        icon: "error",
+        title: "Error!",
+        text: "No audio file available to download.",
+      });
+    }
+  }
+  
+  // ✅ Fetch remaining requests on page load
+  updateRemainingRequests();
+  
+  // ✅ Event Listeners
+  playButton.addEventListener("click", togglePlay);
+  downloadButton.addEventListener("click", downloadAudio);
+  document.querySelector(".download-btn").addEventListener("click", generateAudio);
+});
+  
+  
+</script>
+
+
+
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+  import { getDatabase, ref, set, update, get } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyDV0FGvFOcbNFCyaDsHyirMWFE5s60oK-8",
+    authDomain: "get-good-night.firebaseapp.com",
+    databaseURL: "https://get-good-night-default-rtdb.firebaseio.com",
+    projectId: "get-good-night",
+    storageBucket: "get-good-night.appspot.com",
+    messagingSenderId: "73537901378",
+    appId: "1:73537901378:web:14346af46a52c51a152edb",
+    measurementId: "G-46M9YET5L5"
+  };
+  
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const API_BASE_URL = "http://127.0.0.1:5000";
+  
+  async function getIP() {
+    const response = await fetch("https://api64.ipify.org?format=json");
+    const data = await response.json();
+    return data.ip.replace(/\./g, "_");
+  }
+  
+  function getCurrentDateTime() {
+    const now = new Date();
+    const pad = (num) => String(num).padStart(2, "0");
+    return `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}/${pad(now.getHours())}/${pad(now.getMinutes())}/${pad(now.getSeconds())}`;
+  }
+  
+  async function getRemainingRequests(ip) {
+    setTimeout(async () => {
+      const response = await fetch(`${API_BASE_URL}/remaining-requests`);
+      const data = await response.json();
+      if (data.remaining_requests !== undefined) {
+        update(ref(db, `users/${ip}`), { remainingRequests: data.remaining_requests });
+      }
+    }, 5000);
+  }
+  
+  async function saveVisit() {
+    const ip = await getIP();
+    const userAgent = navigator.userAgent;
+    const timestamp = getCurrentDateTime();
+    const userRef = ref(db, `users/${ip}`);
+    
+    get(userRef).then((snapshot) => {
+      const userData = snapshot.val() || {};
+      const visitCount = (userData.visitCount || 0) + 1;
+      
+      set(userRef, {
+        ip,
+        userAgent,
+        visitCount,
+        time: timestamp,
+        remainingRequests: userData.remainingRequests || 5,
+        stories: userData.stories || []
+        
+      });
+      
+      getRemainingRequests(ip);
+    });
+  }
+  
+  async function saveStoryOnPay() {
+    const ip = await getIP();
+    const textArea = document.getElementById("textInput");
+    const payBtn = document.getElementById("payButton");
+    
+    if (!textArea || !payBtn) {
+      console.error("textInput या payButton नहीं मिला!");
+      return;
+    }
+    
+    payBtn.addEventListener("click", async () => {
+      const storyText = textArea.value.trim();
+      if (!storyText) return;
+      
+      const userRef = ref(db, `users/${ip}`);
+      get(userRef).then((snapshot) => {
+        const userData = snapshot.val() || {};
+        const stories = userData.stories || [];
+        
+        if (!stories.includes(storyText)) {
+          stories.push(storyText);
+          update(userRef, { stories }).then(() => {
+            console.log("Story सेव हो गई!");
+          }).catch(err => console.error("Error:", err));
+        } else {
+          console.log("Story पहले से मौजूद है!");
         }
       });
     });
   }
-
-  function showTextPreview(text) {
-    document.getElementById('textPreview').style.display = 'block';
-    highlightWords(text);
-    setupAudioSync();
-
-    void document.getElementById('extractedTextContent').offsetWidth;
-    document.getElementById('extractedTextContent').classList.add('fade-in');
-  }
-
-  function showAudioPlayer(filename) {
-    const audioPlayer = document.getElementById('audioPlayer');
-    const audioElement = document.getElementById('audioElement');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    audioPlayer.style.display = 'block';
-    audioElement.src = `/output/${filename}`;
-    downloadBtn.disabled = false;
-    downloadBtn.onclick = () => {
-      const link = document.createElement('a');
-      link.href = audioElement.src;
-      link.download = filename;
-      link.click();
-    };
-  }
+  
+  // दोनों फंक्शन को कॉल करना मत भूल
+  saveVisit();
+  saveStoryOnPay();
 </script>
 
 
 
 </body>
-    </html>
-                    
+
+</html>
+    
+
+
+
+
+    
