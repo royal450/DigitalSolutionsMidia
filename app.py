@@ -6,10 +6,9 @@ import asyncio
 import uuid
 import time
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
-import requests
-import threading
 
 # Flask App Setup
 app = Flask(__name__)
@@ -22,13 +21,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 AUDIO_PATH = os.path.join(os.getcwd(), "audio_files")
 os.makedirs(AUDIO_PATH, exist_ok=True)
 
-# Rate Limiting Setup (In-Memory)
+# Rate Limiting Setup (Using Persistent Storage)
 request_counts = defaultdict(lambda: {"count": 0, "time": time.time()})
 MAX_REQUESTS = 5  # 1 घंटे में 5 कॉल अलाउड
 RATE_LIMIT_RESET = 3600  # 1 घंटे में रीसेट
-request_lock = threading.Lock()  # Thread Safety के लिए Lock
-
-# Super Key (Bypasses Rate Limits)
 SUPER_KEY = "ROYAL-KEY-ROYAL"
 
 # Task Status Dictionary
@@ -37,26 +33,26 @@ task_status = {}
 # Optimized Thread Pool for Fast Execution
 executor = ThreadPoolExecutor(max_workers=4)
 
-
 def is_rate_limited(ip, api_key):
-    """ चेक करे कि यूज़र की API लिमिट पूरी हो चुकी है या नहीं। """
+    """ यूज़र की API लिमिट चेक करता है। """
     if api_key == SUPER_KEY:
-        return False, "Unlimited"
+        return False, "Unlimited"  # स्पेशल की वाले यूज़र्स के लिए कोई लिमिट नहीं
 
-    with request_lock:  # 🔒 Lock to prevent race conditions
-        current_time = time.time()
-        user_data = request_counts[ip]
+    current_time = time.time()
+    user_data = request_counts[ip]
 
-        if current_time - user_data["time"] > RATE_LIMIT_RESET:
-            request_counts[ip] = {"count": 1, "time": current_time}
-            return False, MAX_REQUESTS - 1
+    # 1 घंटा पूरा होने पर रीसेट करें
+    if current_time - user_data["time"] > RATE_LIMIT_RESET:
+        request_counts[ip] = {"count": 1, "time": current_time}
+        return False, MAX_REQUESTS - 1
 
-        if user_data["count"] >= MAX_REQUESTS:
-            return True, 0
+    # अगर लिमिट पूरी हो चुकी है
+    if user_data["count"] >= MAX_REQUESTS:
+        return True, 0
 
-        request_counts[ip]["count"] += 1
-        return False, MAX_REQUESTS - request_counts[ip]["count"]
-
+    # अन्यथा, request count को बढ़ाएं
+    request_counts[ip]["count"] += 1
+    return False, MAX_REQUESTS - request_counts[ip]["count"]
 
 async def generate_audio(text, voice):
     """ AI-Generated ऑडियो फाइल बनाता है। """
@@ -69,14 +65,13 @@ async def generate_audio(text, voice):
         logging.error(f"Error generating audio: {e}")
         return None
 
-
 def background_audio_generation(task_id, text, voice):
     """ बैकग्राउंड में ऑडियो जेनरेशन करता है। """
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        cleanup_old_files()
+        cleanup_old_files()  # पुराने फाइल्स डिलीट करो
 
         task_status[task_id] = "processing"
         output_file = loop.run_until_complete(generate_audio(text, voice))
@@ -91,11 +86,10 @@ def background_audio_generation(task_id, text, voice):
     finally:
         loop.close()
 
-
 @app.route("/generate-audio", methods=["POST"])
 def handle_audio_generation():
     """ API कॉल के लिए रेट लिमिटिंग लागू करता है। """
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    client_ip = request.remote_addr
     api_key = request.headers.get("Authorization", "")
 
     rate_limited, remaining_requests = is_rate_limited(client_ip, api_key)
@@ -125,22 +119,19 @@ def handle_audio_generation():
         "remaining_requests": remaining_requests
     }), 202
 
-
 @app.route("/remaining-requests", methods=["GET"])
 def get_remaining_requests():
     """ यूज़र को बताता है कि उसकी कितनी रिक्वेस्ट बची हैं। """
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    client_ip = request.remote_addr
     api_key = request.headers.get("Authorization", "")
 
     if api_key == SUPER_KEY:
         return jsonify({"remaining_requests": "Unlimited"}), 200
 
-    with request_lock:  # 🔒 Thread-Safe Access
-        user_data = request_counts.get(client_ip, {"count": 0, "time": time.time()})
-        remaining_requests = max(0, MAX_REQUESTS - user_data["count"])
+    user_data = request_counts.get(client_ip, {"count": 0, "time": time.time()})
+    remaining_requests = max(0, MAX_REQUESTS - user_data["count"])
 
     return jsonify({"remaining_requests": remaining_requests}), 200
-
 
 @app.route("/task-status/<task_id>", methods=["GET"])
 def get_task_status(task_id):
@@ -159,7 +150,6 @@ def get_task_status(task_id):
     elif status == "processing":
         return jsonify({"status": "processing"}), 202
 
-
 @app.route("/play-audio/<filename>", methods=["GET"])
 def play_audio(filename):
     """ जेनरेटेड ऑडियो को डाउनलोड करने का API। """
@@ -175,7 +165,6 @@ def play_audio(filename):
         logging.error(f"Error serving file {filename}: {e}")
         return jsonify({"error": "File not found"}), 404
 
-
 def cleanup_old_files():
     """ 1 घंटे से पुराने ऑडियो फाइल्स को डिलीट करता है। """
     try:
@@ -187,26 +176,9 @@ def cleanup_old_files():
     except Exception as e:
         logging.error(f"Cleanup Error: {e}")
 
-
-def keep_alive():
-    """ Prevents Render from sleeping by pinging the server every 30 seconds. """
-    def ping_server():
-        while True:
-            try:
-                requests.get("https://digitalsolutionsmidia.onrender.com/")
-                logging.info("Keep Alive: Successfully pinged the server.")
-            except Exception as e:
-                logging.error(f"Keep Alive Error: {e}")
-            time.sleep(30)
-
-    thread = threading.Thread(target=ping_server, daemon=True)
-    thread.start()
-
-
 @app.route('/')
 def index():
     return jsonify({"Message:": "Hello bro I'm In The Rock API"})
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, threaded=True)
