@@ -9,7 +9,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
 import requests
-
+import threading
 
 # Flask App Setup
 app = Flask(__name__)
@@ -26,6 +26,7 @@ os.makedirs(AUDIO_PATH, exist_ok=True)
 request_counts = defaultdict(lambda: {"count": 0, "time": time.time()})
 MAX_REQUESTS = 5  # 1 घंटे में 5 कॉल अलाउड
 RATE_LIMIT_RESET = 3600  # 1 घंटे में रीसेट
+request_lock = threading.Lock()  # Thread Safety के लिए Lock
 
 # Super Key (Bypasses Rate Limits)
 SUPER_KEY = "ROYAL-KEY-ROYAL"
@@ -40,23 +41,21 @@ executor = ThreadPoolExecutor(max_workers=4)
 def is_rate_limited(ip, api_key):
     """ चेक करे कि यूज़र की API लिमिट पूरी हो चुकी है या नहीं। """
     if api_key == SUPER_KEY:
-        return False, "Unlimited"  # स्पेशल की वाले यूज़र्स के लिए कोई लिमिट नहीं
+        return False, "Unlimited"
 
-    current_time = time.time()
-    user_data = request_counts[ip]
+    with request_lock:  # 🔒 Lock to prevent race conditions
+        current_time = time.time()
+        user_data = request_counts[ip]
 
-    # अगर 1 घंटा पूरा हो चुका है, तो लिमिट रीसेट कर दो
-    if current_time - user_data["time"] > RATE_LIMIT_RESET:
-        request_counts[ip] = {"count": 1, "time": current_time}
-        return False, MAX_REQUESTS - 1
+        if current_time - user_data["time"] > RATE_LIMIT_RESET:
+            request_counts[ip] = {"count": 1, "time": current_time}
+            return False, MAX_REQUESTS - 1
 
-    # अगर लिमिट पूरी हो गई है
-    if user_data["count"] >= MAX_REQUESTS:
-        return True, 0
+        if user_data["count"] >= MAX_REQUESTS:
+            return True, 0
 
-    # लिमिट अपडेट करो
-    request_counts[ip]["count"] += 1
-    return False, MAX_REQUESTS - request_counts[ip]["count"]
+        request_counts[ip]["count"] += 1
+        return False, MAX_REQUESTS - request_counts[ip]["count"]
 
 
 async def generate_audio(text, voice):
@@ -77,7 +76,7 @@ def background_audio_generation(task_id, text, voice):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        cleanup_old_files()  # पुराने फाइल्स डिलीट करो
+        cleanup_old_files()
 
         task_status[task_id] = "processing"
         output_file = loop.run_until_complete(generate_audio(text, voice))
@@ -136,8 +135,9 @@ def get_remaining_requests():
     if api_key == SUPER_KEY:
         return jsonify({"remaining_requests": "Unlimited"}), 200
 
-    user_data = request_counts.get(client_ip, {"count": 0, "time": time.time()})
-    remaining_requests = max(0, MAX_REQUESTS - user_data["count"])
+    with request_lock:  # 🔒 Thread-Safe Access
+        user_data = request_counts.get(client_ip, {"count": 0, "time": time.time()})
+        remaining_requests = max(0, MAX_REQUESTS - user_data["count"])
 
     return jsonify({"remaining_requests": remaining_requests}), 200
 
@@ -188,7 +188,6 @@ def cleanup_old_files():
         logging.error(f"Cleanup Error: {e}")
 
 
-
 def keep_alive():
     """ Prevents Render from sleeping by pinging the server every 30 seconds. """
     def ping_server():
@@ -200,14 +199,13 @@ def keep_alive():
                 logging.error(f"Keep Alive Error: {e}")
             time.sleep(30)
 
-    # इसे एक अलग बैकग्राउंड Thread में चलाओ
     thread = threading.Thread(target=ping_server, daemon=True)
     thread.start()
 
 
 @app.route('/')
 def index():
-  return jsonify({"Message:": "Hello bro I'm In The Rock API"})
+    return jsonify({"Message:": "Hello bro I'm In The Rock API"})
 
 
 if __name__ == "__main__":
